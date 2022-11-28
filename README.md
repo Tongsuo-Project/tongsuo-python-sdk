@@ -1,0 +1,2 @@
+# tongsuo-python-sdk
+铜锁Python开发套件底层使用Tongsuo密码库，旨在为Python开发者提供密码学原语和安全传输协议的支持，目前以国密算法和协议为主
