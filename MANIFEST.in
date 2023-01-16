@@ -1,0 +1,19 @@
+include CHANGES.md
+include LICENSE
+include README.md
+
+include pyproject.toml
+recursive-include src py.typed *.pyi
+
+recursive-include demos *.py
+recursive-include src/_cffi *.py *.c *.h
+recursive-include tests *.py
+recursive-include tests/vectors *
+
+recursive-exclude tests .DS_Store
+
+recursive-exclude .github *
+
+exclude release.py dev-requirements.txt tox.ini
+
+recursive-exclude .circleci *
