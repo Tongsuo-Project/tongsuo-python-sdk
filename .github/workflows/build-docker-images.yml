@@ -1,0 +1,52 @@
+name: Docker Image Builder
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/build-docker-images.yml'
+      - 'infra/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-docker-images.yml'
+      - 'infra/**'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Build containers for x86
+  build:
+    runs-on: ${{ matrix.IMAGE.RUNNER }}
+    strategy:
+      fail-fast: false
+      matrix:
+        IMAGE:
+          - {TAG_NAME: "tongsuopy-manylinux2014:x86_64", DOCKERFILE_PATH: "infra", BUILD_ARGS: "--build-arg PYCA_RELEASE=manylinux2014_x86_64", RUNNER: "ubuntu-latest"}
+          - {TAG_NAME: "tongsuopy-manylinux_2_24:x86_64", DOCKERFILE_PATH: "infra", BUILD_ARGS: "--build-arg PYCA_RELEASE=manylinux_2_24_x86_64", RUNNER: "ubuntu-latest"}
+          - {TAG_NAME: "tongsuopy-manylinux_2_28:x86_64", DOCKERFILE_PATH: "infra", BUILD_ARGS: "--build-arg PYCA_RELEASE=manylinux_2_28_x86_64", RUNNER: "ubuntu-latest"}
+          - {TAG_NAME: "tongsuopy-musllinux_1_1:x86_64", DOCKERFILE_PATH: "infra", BUILD_ARGS: "--build-arg PYCA_RELEASE=musllinux_1_1_x86_64", RUNNER: "ubuntu-latest"}
+
+    name: "${{ matrix.IMAGE.TAG_NAME }}"
+    steps:
+      - uses: actions/checkout@v3.3.0
+      # Pull the previous image, but if it fails return true anyway.
+      # Sometimes we add new docker images and if they've never been pushed
+      # they can't be pulled.
+      - name: Pull existing image
+        run: docker pull ghcr.io/tongsuo-project/${{ matrix.IMAGE.TAG_NAME }} || true
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+      - name: Build image
+        run: docker build --pull --cache-from ghcr.io/tongsuo-project/${{ matrix.IMAGE.TAG_NAME }} -t ghcr.io/tongsuo-project/${{ matrix.IMAGE.TAG_NAME }} ${{ matrix.IMAGE.DOCKERFILE_PATH }} ${{ matrix.IMAGE.BUILD_ARGS }}
+      - name: Login to docker
+        run: 'docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" ghcr.io'
+        env:
+          DOCKER_USERNAME: ${{ github.actor }}
+          DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        if: (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+      - name: Push image
+        run: docker push ghcr.io/tongsuo-project/${{ matrix.IMAGE.TAG_NAME }}
+        if: (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'

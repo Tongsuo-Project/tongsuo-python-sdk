@@ -8,7 +8,7 @@ __all__ = [
     "__copyright__",
 ]
 
-__version__ = "1.0.0.dev"
+__version__ = "1.0.0"
 
 __author__ = "The Tongsuo Project Authors"
 __copyright__ = (
