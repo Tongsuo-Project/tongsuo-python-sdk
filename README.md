@@ -1,6 +1,69 @@
 # tongsuo-python-sdk
 
-铜锁Python开发套件基于[Tongsuo密码库](https://github.com/Tongsuo-Project/Tongsuo), 为Python应用提供密码学原语和安全传输协议的支持，目前以支持中国商用密码算法和安全协议为主。
+Tongsuo-Python-SDK基于[Tongsuo密码库](https://github.com/Tongsuo-Project/Tongsuo), 为Python应用提供密码学原语和安全传输协议的支持，目前以支持中国商用密码算法和安全协议为主。
+
+SM2签名，详见[sm2_sign.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm2_sign.py)
+```python
+from tongsuopy.crypto import hashes
+from tongsuopy.crypto.asymciphers import ec
+
+key = ec.EllipticCurvePrivateNumbers(
+    int(d, 16),
+    ec.EllipticCurvePublicNumbers(int(Qx, 16), int(Qy, 16), ec.SM2()),
+).private_key()
+signature = key.sign(msg, ec.ECDSA(hashes.SM3()))
+```
+SM2验签，详见[sm2_verify.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm2_verify.py)
+```python
+from tongsuopy.crypto import hashes
+from tongsuopy.crypto.asymciphers import ec
+from tongsuopy.crypto.asymciphers.utils import encode_dss_signature
+
+signature = encode_dss_signature(R, S)
+
+pubkey = ec.EllipticCurvePublicNumbers(
+    (Qx, Qy), ec.SM2()
+).public_key()
+pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
+```
+
+SM3杂凑，详见[sm3.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm3.py)
+```python
+from tongsuopy.crypto import hashes
+
+h = hashes.Hash(hashes.SM3())
+h.update(b"abc")
+res = h.finalize()
+```
+
+SM4-CBC加密，详见[sm4_cbc.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm4_cbc.py)
+```python
+from tongsuopy.crypto.ciphers import Cipher, algorithms, modes
+
+c = Cipher(algorithms.SM4(key), modes.CBC(iv))
+enc = c.encryptor()
+ciphertext = enc.update(plaintext)
+ciphertext += enc.finalize()
+```
+
+SM4-GCM加密，详见[sm4_gcm.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm4_gcm.py)
+```python
+from tongsuopy.crypto.ciphers import Cipher, algorithms, modes
+
+c = Cipher(algorithms.SM4(key), modes.GCM(iv))
+
+enc = c.encryptor()
+enc.authenticate_additional_data(aad)
+ciphertext = enc.update(plaintext)
+ciphertext += enc.finalize()
+```
+
+## 安装
+
+```bash
+pip install tongsuopy
+```
+要求Python >= 3.6。
 
 ## 功能特性
 
@@ -10,26 +73,6 @@
 - 支持SM4-GCM和SM4-CCM
 - [TODO] TLCP协议支持
 
-## 安装
-
-Linux、MacOS安装示例：
-```bash
-# 先安装铜锁，下载源码包或者使用git仓库代码
-wget https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/8.3.2.tar.gz
-tar xzvf 8.3.2.tar.gz
-pushd Tongsuo-8.3.2
-./config enable-ntls --prefix=/usr/local/tongsuo -Wl,-rpath=/usr/local/tongsuo/lib
-make -j
-make install
-popd
-
-# 设置TONGSUO_HOME环境变量：
-export TONGSUO_HOME=/usr/local/tongsuo
-
-pip install tongsuopy
-```
-
-## 文档
 
 ## 交流群
 

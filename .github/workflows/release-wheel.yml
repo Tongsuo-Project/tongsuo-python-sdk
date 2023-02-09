@@ -1,0 +1,284 @@
+name: Release Wheel
+permissions:
+  contents: read
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to build
+
+env:
+  TONGSUO_VERSION: 8.3.2
+
+jobs:
+  sdist:
+    runs-on: ubuntu-latest
+    name: sdists
+    steps:
+      - uses: actions/checkout@v3.1.0
+        with:
+          # The tag to build or the tag received by the tag event
+          ref: ${{ github.event.inputs.version || github.ref }}
+          persist-credentials: false
+
+      - run: python -m venv .venv
+      - name: Install Python dependencies
+        run: .venv/bin/pip install -U pip cffi
+      - name: Make sdist
+        run: .venv/bin/python setup.py sdist
+      - uses: actions/upload-artifact@v3.1.1
+        with:
+          name: "tongsuopy-sdist"
+          path: dist/tongsuopy*
+
+  manylinux:
+    needs: [sdist]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/tongsuo-project/${{ matrix.MANYLINUX.CONTAINER }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON:
+          - { VERSION: "cp36-cp36m", ABI_VERSION: 'cp36' }
+          - { VERSION: "pp38-pypy38_pp73" }
+          - { VERSION: "pp39-pypy39_pp73" }
+        MANYLINUX:
+          - { NAME: "manylinux2014_x86_64", CONTAINER: "tongsuopy-manylinux2014:x86_64" }
+          - { NAME: "manylinux_2_24_x86_64", CONTAINER: "tongsuopy-manylinux_2_24:x86_64"}
+          - { NAME: "manylinux_2_28_x86_64", CONTAINER: "tongsuopy-manylinux_2_28:x86_64"}
+          - { NAME: "musllinux_1_1_x86_64", CONTAINER: "tongsuopy-musllinux_1_1:x86_64"}
+        exclude:
+          # There are no readily available PyPy distributions
+          - PYTHON: { VERSION: "pp38-pypy38_pp73" }
+            MANYLINUX: { NAME: "musllinux_1_1_x86_64", CONTAINER: "tongsuopy-musllinux_1_1:x86_64"}
+          - PYTHON: { VERSION: "pp39-pypy39_pp73" }
+            MANYLINUX: { NAME: "musllinux_1_1_x86_64", CONTAINER: "tongsuopy-musllinux_1_1:x86_64"}
+    name: "${{ matrix.PYTHON.VERSION }} for ${{ matrix.MANYLINUX.NAME }}"
+    steps:
+      - uses: actions/download-artifact@v3.0.1
+        with:
+          name: tongsuopy-sdist
+      - name: Set TONGSUO_HOME
+        shell: bash
+        run: echo "TONGSUO_HOME=${GITHUB_WORKSPACE}/tongsuo${TONGSUO_VERSION}" >> $GITHUB_ENV
+      - name: Build Tongsuo
+        working-directory: ${{ runner.temp }}
+        run: |
+          wget "https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/${TONGSUO_VERSION}.tar.gz"
+          tar zxf "${TONGSUO_VERSION}.tar.gz"
+          cd "Tongsuo-${TONGSUO_VERSION}"
+          ./config no-shared enable-ntls --release --prefix=${TONGSUO_HOME}
+          make -s -j4
+          make install_sw
+          cd -
+      - run: /opt/python/${{ matrix.PYTHON.VERSION }}/bin/python -m venv .venv
+      - name: Install Python dependencies
+        run: .venv/bin/pip install -U pip wheel cffi
+      - run: tar zxvf tongsuopy*.tar.gz && rm tongsuopy*.tar.gz && mkdir tmpwheelhouse
+      - name: Build the wheel
+        run: |
+          if [ -n "${{ matrix.PYTHON.ABI_VERSION }}" ]; then
+              PY_LIMITED_API="--py-limited-api=${{ matrix.PYTHON.ABI_VERSION }}"
+          fi
+          cd tongsuopy*
+          ../.venv/bin/python setup.py bdist_wheel $PY_LIMITED_API && mv dist/tongsuopy*.whl ../tmpwheelhouse
+
+      - run: auditwheel repair --plat ${{ matrix.MANYLINUX.NAME }} tmpwheelhouse/tongsuopy*.whl -w wheelhouse/
+      - run: unzip wheelhouse/*.whl -d execstack.check
+      - run: |
+          results=$(readelf -lW execstack.check/tongsuopy/backends/*.so)
+          count=$(echo "$results" | grep -c 'GNU_STACK.*[R ][W ]E' || true)
+          if [ "$count" -ne 0 ]; then
+            exit 1
+          else
+            exit 0
+          fi
+      - run: .venv/bin/pip install tongsuopy --no-index -f wheelhouse/
+      - run: |
+          .venv/bin/python -c "from tongsuopy.backends.tongsuo.backend import backend;print('Loaded: ' + backend.openssl_version_text());print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
+      - run: mkdir tongsuopy-wheelhouse
+      - run: mv wheelhouse/tongsuopy*.whl tongsuopy-wheelhouse/
+      - name: Publish tongsuopy to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: tongsuopy-wheelhouse/
+          print_hash: true
+#          repository_url: https://test.pypi.org/legacy/
+
+  macos:
+    needs: [sdist]
+    runs-on: macos-12
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON:
+          - VERSION: '3.10'
+            ABI_VERSION: 'cp36'
+            # Despite the name, this is built for the macOS 11 SDK on arm64 and 10.9+ on intel
+            DOWNLOAD_URL: 'https://www.python.org/ftp/python/3.10.0/python-3.10.0post2-macos11.pkg'
+            BIN_PATH: '/Library/Frameworks/Python.framework/Versions/3.10/bin/python3'
+            DEPLOYMENT_TARGET: '10.12'
+            # This archflags is default, but let's be explicit
+            ARCHFLAGS: '-arch x86_64 -arch arm64'
+            # See https://github.com/pypa/cibuildwheel/blob/c8876b5c54a6c6b08de5d4b1586906b56203bd9e/cibuildwheel/macos.py#L257-L269
+            # This will change in the future as we change the base Python we
+            # build against
+            _PYTHON_HOST_PLATFORM: 'macosx-10.9-universal2'
+          - VERSION: '3.10'
+            ABI_VERSION: 'cp36'
+            DOWNLOAD_URL: 'https://www.python.org/ftp/python/3.10.0/python-3.10.0post2-macos11.pkg'
+            BIN_PATH: '/Library/Frameworks/Python.framework/Versions/3.10/bin/python3'
+            DEPLOYMENT_TARGET: '10.12'
+            # We continue to build a non-universal2 for a bit to see metrics on
+            # download counts (this is a proxy for pip version since universal2
+            # requires a 21.x pip)
+            ARCHFLAGS: '-arch x86_64'
+            _PYTHON_HOST_PLATFORM: 'macosx-10.9-x86_64'
+          - VERSION: 'pypy-3.8'
+            BIN_PATH: 'pypy3'
+            DEPLOYMENT_TARGET: '10.12'
+            _PYTHON_HOST_PLATFORM: 'macosx-10.9-x86_64'
+            ARCHFLAGS: '-arch x86_64'
+          - VERSION: 'pypy-3.9'
+            BIN_PATH: 'pypy3'
+            DEPLOYMENT_TARGET: '10.12'
+            _PYTHON_HOST_PLATFORM: 'macosx-10.9-x86_64'
+            ARCHFLAGS: '-arch x86_64'
+    name: "${{ matrix.PYTHON.VERSION }} ABI ${{ matrix.PYTHON.ABI_VERSION }} macOS ${{ matrix.PYTHON.ARCHFLAGS }}"
+    steps:
+      - uses: actions/download-artifact@v3.0.1
+        with:
+          name: tongsuopy-sdist
+
+      - name: Setup python
+        run: |
+          curl "$PYTHON_DOWNLOAD_URL" -o python.pkg
+          sudo installer -pkg python.pkg -target /
+        env:
+          PYTHON_DOWNLOAD_URL: ${{ matrix.PYTHON.DOWNLOAD_URL }}
+        if: contains(matrix.PYTHON.VERSION, 'pypy') == false
+      - name: Setup pypy
+        uses: actions/setup-python@v4.3.0
+        with:
+          python-version: ${{ matrix.PYTHON.VERSION }}
+        if: contains(matrix.PYTHON.VERSION, 'pypy')
+      - name: Set TONGSUO_HOME
+        shell: bash
+        run: echo "TONGSUO_HOME=${GITHUB_WORKSPACE}/tongsuo${TONGSUO_VERSION}" >> $GITHUB_ENV
+      - name: Build Tongsuo
+        working-directory: ${{ runner.temp }}
+        run: |
+          wget "https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/${TONGSUO_VERSION}.tar.gz"
+          tar zxf "${TONGSUO_VERSION}.tar.gz"
+          cd "Tongsuo-${TONGSUO_VERSION}"
+          ./config no-shared enable-ntls --release --prefix=${TONGSUO_HOME}
+          make -s -j4
+          make install_sw
+          cd -
+      - run: ${{ matrix.PYTHON.BIN_PATH }} -m venv venv
+      - run: venv/bin/pip install -U pip wheel cffi twine
+      - run: tar zxvf tongsuopy*.tar.gz && mkdir wheelhouse
+      - name: Build the wheel
+        run: |
+          cd tongsuopy*
+          ../venv/bin/python setup.py bdist_wheel --py-limited-api=${{ matrix.PYTHON.ABI_VERSION }} && mv dist/tongsuopy*.whl ../wheelhouse
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.PYTHON.DEPLOYMENT_TARGET }}
+          ARCHFLAGS: ${{ matrix.PYTHON.ARCHFLAGS }}
+          _PYTHON_HOST_PLATFORM: ${{ matrix.PYTHON._PYTHON_HOST_PLATFORM }}
+      - run: venv/bin/pip install -f wheelhouse --no-index tongsuopy
+      - name: Show the wheel's minimum macOS SDK and architectures
+        run: |
+          find venv/lib/*/site-packages/tongsuopy/backends -name '*.so' -exec vtool -show {} \;
+      - run: |
+          venv/bin/python -c "from tongsuopy.backends.tongsuo.backend import backend;print('Loaded: ' + backend.openssl_version_text());print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
+
+      - run: mkdir tongsuopy-wheelhouse
+      - run: mv wheelhouse/tongsuopy*.whl tongsuopy-wheelhouse/
+      - name: Publish tongsuopy to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          venv/bin/twine upload --repository pypi tongsuopy-wheelhouse/*
+
+  windows:
+    needs: [sdist]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        WINDOWS:
+          - {ARCH: 'x86', WINDOWS: 'win32', CONFIG: 'VC-WIN32'}
+          - {ARCH: 'x64', WINDOWS: 'win64', CONFIG: 'VC-WIN64A'}
+        PYTHON:
+          - {VERSION: "3.8", "ABI_VERSION": "cp36"}
+          - {VERSION: "pypy-3.8"}
+          - {VERSION: "pypy-3.9"}
+        exclude:
+          # We need to exclude the below configuration because there is no 32-bit pypy3
+          - WINDOWS: {ARCH: 'x86', WINDOWS: 'win32', CONFIG: 'VC-WIN32'}
+            PYTHON: {VERSION: "pypy-3.8"}
+          - WINDOWS: {ARCH: 'x86', WINDOWS: 'win32', CONFIG: 'VC-WIN32'}
+            PYTHON: {VERSION: "pypy-3.9"}
+    name: "${{ matrix.PYTHON.VERSION }} ${{ matrix.WINDOWS.WINDOWS }} ${{ matrix.PYTHON.ABI_VERSION }}"
+    steps:
+      - uses: actions/download-artifact@v3.0.1
+        with:
+          name: tongsuopy-sdist
+      - name: Setup python
+        uses: actions/setup-python@v4.3.0
+        with:
+          python-version: ${{ matrix.PYTHON.VERSION }}
+          architecture: ${{ matrix.WINDOWS.ARCH }}
+      - run: choco install -y winrar
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.WINDOWS.WINDOWS }}
+      - uses: ilammy/setup-nasm@v1
+        with:
+          platform: ${{ matrix.WINDOWS.WINDOWS }}
+      - uses: shogo82148/actions-setup-perl@v1
+      - name: Set Env
+        shell: bash
+        run: |
+          echo "TONGSUO_HOME=${GITHUB_WORKSPACE}\tongsuo${{ env.TONGSUO_VERSION }}" >> $GITHUB_ENV
+      - name: Download Tongsuo source
+        run: |
+          wget "https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/${{ env.TONGSUO_VERSION }}.tar.gz" -OutFile "${{ env.TONGSUO_VERSION }}.tar.gz"
+        shell: powershell
+      - run: '"C:\Program Files\WinRAR\WinRAR.exe" -INUL x ${{ env.TONGSUO_VERSION }}.tar.gz'
+        shell: cmd
+      - name: Build Tongsuo
+        shell: cmd
+        run: |
+          pushd "Tongsuo-${{ env.TONGSUO_VERSION }}"
+          mkdir _build
+          pushd _build
+          perl ..\Configure no-makedepend no-shared enable-ntls ${{ matrix.WINDOWS.CONFIG }} --prefix=%TONGSUO_HOME%
+          nmake /S
+          nmake install_sw
+          popd
+          popd
+      - run: python -m pip install -U pip wheel twine
+      - run: python -m pip install cffi
+      - run: tar zxvf tongsuopy*.tar.gz && mkdir wheelhouse
+        shell: bash
+      - run: cd tongsuopy* && python setup.py bdist_wheel --py-limited-api=${{ matrix.PYTHON.ABI_VERSION }} && mv dist/tongsuopy*.whl ../wheelhouse
+      - run: pip install -f wheelhouse --no-index tongsuopy
+      - name: Print the OpenSSL we built and linked against
+        run: |
+            python -c "from tongsuopy.backends.tongsuo.backend import backend;print('Loaded: ' + backend.openssl_version_text());print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
+      - run: mkdir tongsuopy-wheelhouse
+      - run: move wheelhouse\tongsuopy*.whl tongsuopy-wheelhouse\
+      - name: Publish tongsuopy to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          twine upload --repository pypi tongsuopy-wheelhouse\*

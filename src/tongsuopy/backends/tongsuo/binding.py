@@ -236,8 +236,8 @@ if (
     and os.environ.get("PROCESSOR_ARCHITEW6432") is not None
 ):
     warnings.warn(
-        "You are using cryptography on a 32-bit Python on a 64-bit Windows "
-        "Operating System. Cryptography will be significantly faster if you "
+        "You are using tongsuopy on a 32-bit Python on a 64-bit Windows "
+        "Operating System. Tongsuopy will be significantly faster if you "
         "switch to using a 64-bit Python.",
         UserWarning,
         stacklevel=2,

@@ -14,6 +14,8 @@ recursive-exclude tests .DS_Store
 
 recursive-exclude .github *
 
+recursive-exclude infra *
+
 exclude release.py dev-requirements.txt tox.ini
 
 recursive-exclude .circleci *
