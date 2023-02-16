@@ -88,13 +88,15 @@ def _openssl_assert(
         errors_with_text = _errors_with_text(errors)
 
         raise InternalError(
-            "Unknown OpenSSL error. This error is commonly encountered when "
-            "another library is not cleaning up the OpenSSL error stack. If "
-            "you are using cryptography with another library that uses "
+            "Unknown Tongsuo error. This error is commonly encountered when "
+            "another library is not cleaning up the Tongsuo error stack. If "
+            "you are using tongsuopy with another library that uses "
             "OpenSSL try disabling it before reporting a bug. Otherwise "
-            "please file an issue at https://github.com/pyca/cryptography/"
-            "issues with information on how to reproduce "
-            "this. ({0!r})".format(errors_with_text),
+            "please file an issue at "
+            "https://github.com/Tongsuo-Project/tongsuo-python-sdk/issues "
+            "with information on how to reproduce this. ({0!r})".format(
+                errors_with_text
+            ),
             errors_with_text,
         )
 
@@ -217,13 +219,11 @@ def _verify_package_version(version: str) -> None:
     so_package_version = ffi.string(lib.CRYPTOGRAPHY_PACKAGE_VERSION)
     if version.encode("ascii") != so_package_version:
         raise ImportError(
-            "The version of cryptography does not match the loaded "
-            "shared object. This can happen if you have multiple copies of "
-            "cryptography installed in your Python path. Please try creating "
-            "a new virtual environment to resolve this issue. "
-            "Loaded python version: {}, shared object version: {}".format(
-                version, so_package_version
-            )
+            "The version of tongsuopy does not match the loaded shared "
+            "object. This can happen if you have multiple copies of tongsuopy "
+            "installed in your Python path. Please try creating a new virtual "
+            "environment to resolve this issue. Loaded python version: {}, "
+            "shared object version: {}".format(version, so_package_version)
         )
 
 

@@ -164,6 +164,7 @@ int EVP_PKEY_get_raw_public_key(const EVP_PKEY *, unsigned char *, size_t *);
 
 int EVP_default_properties_is_fips_enabled(OSSL_LIB_CTX *);
 int EVP_default_properties_enable_fips(OSSL_LIB_CTX *, int);
+int EVP_PKEY_is_sm2(EVP_PKEY *);
 int EVP_PKEY_set_alias_type(EVP_PKEY *pkey, int type);
 """
 

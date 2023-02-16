@@ -189,6 +189,11 @@ class Backend:
         )
         if evp_pkey != self._ffi.NULL:
             evp_pkey = self._ffi.gc(evp_pkey, self._lib.EVP_PKEY_free)
+
+            if self._lib.EVP_PKEY_is_sm2(evp_pkey):
+                self._lib.EVP_PKEY_set_alias_type(
+                    evp_pkey, self._lib.EVP_PKEY_SM2
+                )
             return self._evp_pkey_to_public_key(evp_pkey)
         else:
             self._handle_key_loading_error()
@@ -287,6 +292,9 @@ class Backend:
         key = self._lib.d2i_PrivateKey_bio(bio_data.bio, self._ffi.NULL)
         if key != self._ffi.NULL:
             key = self._ffi.gc(key, self._lib.EVP_PKEY_free)
+            if self._lib.EVP_PKEY_is_sm2(key):
+                self._lib.EVP_PKEY_set_alias_type(key, self._lib.EVP_PKEY_SM2)
+
             if password is not None:
                 raise TypeError(
                     "Password was given but private key is not encrypted."
@@ -302,6 +310,10 @@ class Backend:
         evp_pkey = self._lib.d2i_PUBKEY_bio(mem_bio.bio, self._ffi.NULL)
         if evp_pkey != self._ffi.NULL:
             evp_pkey = self._ffi.gc(evp_pkey, self._lib.EVP_PKEY_free)
+            if self._lib.EVP_PKEY_is_sm2(evp_pkey):
+                self._lib.EVP_PKEY_set_alias_type(
+                    evp_pkey, self._lib.EVP_PKEY_SM2
+                )
             return self._evp_pkey_to_public_key(evp_pkey)
         else:
             self._handle_key_loading_error()
@@ -344,6 +356,9 @@ class Backend:
                 self._handle_key_loading_error()
 
         evp_pkey = self._ffi.gc(evp_pkey, self._lib.EVP_PKEY_free)
+
+        if self._lib.EVP_PKEY_is_sm2(evp_pkey):
+            self._lib.EVP_PKEY_set_alias_type(evp_pkey, self._lib.EVP_PKEY_SM2)
 
         if password is not None and userdata.called == 0:
             raise TypeError(
@@ -438,6 +453,10 @@ class Backend:
         evp_pkey = self._create_evp_pkey_gc()
         res = self._lib.EVP_PKEY_set1_EC_KEY(evp_pkey, ec_cdata)
         self.openssl_assert(res == 1)
+
+        if self._lib.EVP_PKEY_is_sm2(evp_pkey):
+            self._lib.EVP_PKEY_set_alias_type(evp_pkey, self._lib.EVP_PKEY_SM2)
+
         return evp_pkey
 
     def _elliptic_curve_to_nid(self, curve: ec.EllipticCurve) -> int:
@@ -537,9 +556,6 @@ class Backend:
             ec_cdata, numbers.x, numbers.y
         )
         evp_pkey = self._ec_cdata_to_evp_pkey(ec_cdata)
-
-        if isinstance(numbers.curve, ec.SM2):
-            self._lib.EVP_PKEY_set_alias_type(evp_pkey, self._lib.EVP_PKEY_SM2)
 
         return _EllipticCurvePublicKey(self, ec_cdata, evp_pkey)
 
