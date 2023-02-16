@@ -8,9 +8,7 @@ __all__ = [
     "__copyright__",
 ]
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 __author__ = "The Tongsuo Project Authors"
-__copyright__ = (
-    "Copyright 2022 The Tongsuo Project Authors. All Rights " "Reserved."
-)
+__copyright__ = "Copyright 2023 {}. All Rights Reserved.".format(__author__)

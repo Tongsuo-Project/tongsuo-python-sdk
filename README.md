@@ -2,28 +2,21 @@
 
 Tongsuo-Python-SDK基于[Tongsuo密码库](https://github.com/Tongsuo-Project/Tongsuo), 为Python应用提供密码学原语和安全传输协议的支持，目前以支持中国商用密码算法和安全协议为主。
 
-SM2签名，详见[sm2_sign.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm2_sign.py)
+SM2签名和验签，详见[sm2_sign_verify.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm2_sign_verify.py)
 ```python
-from tongsuopy.crypto import hashes
+from tongsuopy.crypto import hashes, serialization
 from tongsuopy.crypto.asymciphers import ec
 
-key = ec.EllipticCurvePrivateNumbers(
-    int(d, 16),
-    ec.EllipticCurvePublicNumbers(int(Qx, 16), int(Qy, 16), ec.SM2()),
-).private_key()
+msg = b"hello"
+key = ec.generate_private_key(ec.SM2())
+
+pem = key.public_key().public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+)
+pubkey = serialization.load_pem_public_key(pem)
+
 signature = key.sign(msg, ec.ECDSA(hashes.SM3()))
-```
-SM2验签，详见[sm2_verify.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm2_verify.py)
-```python
-from tongsuopy.crypto import hashes
-from tongsuopy.crypto.asymciphers import ec
-from tongsuopy.crypto.asymciphers.utils import encode_dss_signature
-
-signature = encode_dss_signature(R, S)
-
-pubkey = ec.EllipticCurvePublicNumbers(
-    (Qx, Qy), ec.SM2()
-).public_key()
 pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
 ```
 

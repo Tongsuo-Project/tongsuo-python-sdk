@@ -44,7 +44,7 @@ jobs:
         uses: actions/setup-python@v4.3.0
         with:
           python-version: ${{ matrix.PYTHON.VERSION }}
-      - run: python -m pip install tox requests coverage[toml]
+      - run: python -m pip install tox coverage[toml]
       - name: Set TONGSUO_HOME
         shell: bash
         run: echo "TONGSUO_HOME=${GITHUB_WORKSPACE}/tongsuo${VERSION}" >> $GITHUB_ENV
@@ -56,7 +56,7 @@ jobs:
           wget "https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/${VERSION}.tar.gz"
           tar zxf "${VERSION}.tar.gz"
           pushd "Tongsuo-${VERSION}"
-          ./config enable-ntls --prefix=${TONGSUO_HOME}
+          ./config enable-ntls no-shared --prefix=${TONGSUO_HOME}
           make -s -j4
           make install_sw
           popd
@@ -76,8 +76,8 @@ jobs:
       fail-fast: false
       matrix:
         PYTHON:
-          - {VERSION: "3.6", TOXENV: "py36", TONGSUO: {VERSION: "8.3.1"}}
-          - {VERSION: "3.10", TOXENV: "py310", TONGSUO: {VERSION: "8.3.1"}}
+          - {VERSION: "3.6", TOXENV: "py36", TONGSUO: {VERSION: "8.3.2"}}
+          - {VERSION: "3.10", TOXENV: "py310", TONGSUO: {VERSION: "8.3.2"}}
     name: "${{ matrix.PYTHON.TOXENV }} tongsuo-${{ matrix.PYTHON.TONGSUO.VERSION }} on macOS"
     timeout-minutes: 15
     steps:
@@ -90,7 +90,7 @@ jobs:
         uses: actions/setup-python@v4.3.0
         with:
           python-version: ${{ matrix.PYTHON.VERSION }}
-      - run: python -m pip install tox requests coverage[toml]
+      - run: python -m pip install tox coverage[toml]
       - name: Set TONGSUO_HOME
         shell: bash
         run: echo "TONGSUO_HOME=${GITHUB_WORKSPACE}/tongsuo${VERSION}" >> $GITHUB_ENV
@@ -101,7 +101,7 @@ jobs:
           wget "https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/${VERSION}.tar.gz"
           tar zxf "${VERSION}.tar.gz"
           pushd "Tongsuo-${VERSION}"
-          ./config enable-ntls --prefix=${TONGSUO_HOME}
+          ./config enable-ntls no-shared --prefix=${TONGSUO_HOME}
           make -s -j4
           make install_sw
           popd
@@ -109,6 +109,8 @@ jobs:
           VERSION: ${{ matrix.PYTHON.TONGSUO.VERSION }}
       - name: Tests
         run: |
+          # delete openssl/include installed in macos-12, fix cffi compile failed
+          rm -rf /usr/local/opt/openssl@1.1/include
           tox -vvv -r --  --color=yes
         env:
           TOXENV: ${{ matrix.PYTHON.TOXENV }}
@@ -124,8 +126,8 @@ jobs:
           - { ARCH: 'x86', WINDOWS: 'win32', CONFIG: 'VC-WIN32' }
           - { ARCH: 'x64', WINDOWS: 'win64', CONFIG: 'VC-WIN64A' }
         PYTHON:
-          - {VERSION: "3.6", TOXENV: "py36", TONGSUO: {VERSION: "8.3.1"}}
-          - {VERSION: "3.11", TOXENV: "py311", TONGSUO: {VERSION: "8.3.1"}}
+          - {VERSION: "3.6", TOXENV: "py36", TONGSUO: {VERSION: "8.3.2"}}
+          - {VERSION: "3.11", TOXENV: "py311", TONGSUO: {VERSION: "8.3.2"}}
         JOB_NUMBER: [0, 1, 2]
     name: "${{ matrix.PYTHON.TOXENV }} tongsuo-${{ matrix.PYTHON.TONGSUO.VERSION }} on ${{ matrix.WINDOWS.WINDOWS }} (part ${{ matrix.JOB_NUMBER }})"
     timeout-minutes: 15
@@ -148,7 +150,7 @@ jobs:
         with:
           python-version: ${{ matrix.PYTHON.VERSION }}
           architecture: ${{ matrix.WINDOWS.ARCH }}
-      - run: python -m pip install tox requests coverage[toml]
+      - run: python -m pip install tox coverage[toml]
       - name: Export env
         shell: bash
         run: |

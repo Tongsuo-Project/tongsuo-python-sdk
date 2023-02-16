@@ -935,3 +935,72 @@ class TestEllipticCurvePEMPublicKeySerialization:
             )
             == point
         )
+
+
+class TestECDSAWithPEM:
+    def test_verify_with_pem_pubkey(self, backend):
+        _skip_curve_unsupported(backend, ec.SM2())
+        msg = b"hello"
+        key = ec.generate_private_key(ec.SM2(), backend)
+
+        pem = key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        pubkey = serialization.load_pem_public_key(pem, backend)
+
+        signature = key.sign(msg, ec.ECDSA(hashes.SM3()))
+        pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
+
+    def test_sign_verify_from_pem(self, backend):
+        _skip_curve_unsupported(backend, ec.SM2())
+        msg = b"hello"
+        privkey = load_vectors_from_file(
+            os.path.join(
+                "asymciphers", "PEM_Serialization", "sm2_private_key.pem"
+            ),
+            lambda pemfile: serialization.load_pem_private_key(
+                pemfile.read().encode(), None, backend
+            ),
+        )
+        assert isinstance(privkey, ec.EllipticCurvePrivateKey)
+        signature = privkey.sign(msg, ec.ECDSA(hashes.SM3()))
+
+        pubkey = load_vectors_from_file(
+            os.path.join(
+                "asymciphers", "PEM_Serialization", "sm2_public_key.pem"
+            ),
+            lambda pemfile: serialization.load_pem_public_key(
+                pemfile.read().encode(), backend
+            ),
+        )
+        assert isinstance(pubkey, ec.EllipticCurvePublicKey)
+        pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
+
+    def test_sign_verify_from_der(self, backend):
+        _skip_curve_unsupported(backend, ec.SM2())
+        msg = b"hello"
+
+        privkey = load_vectors_from_file(
+            os.path.join(
+                "asymciphers", "DER_Serialization", "sm2_private_key.der"
+            ),
+            lambda pemfile: serialization.load_der_private_key(
+                pemfile.read(), None, backend
+            ),
+            mode="rb",
+        )
+        assert isinstance(privkey, ec.EllipticCurvePrivateKey)
+        signature = privkey.sign(msg, ec.ECDSA(hashes.SM3()))
+
+        pubkey = load_vectors_from_file(
+            os.path.join(
+                "asymciphers", "DER_Serialization", "sm2_public_key.der"
+            ),
+            lambda pemfile: serialization.load_der_public_key(
+                pemfile.read(), backend
+            ),
+            mode="rb",
+        )
+        assert isinstance(pubkey, ec.EllipticCurvePublicKey)
+        pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
