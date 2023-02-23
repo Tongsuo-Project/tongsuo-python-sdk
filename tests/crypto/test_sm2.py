@@ -16,6 +16,7 @@ from tongsuopy.crypto.asymciphers.utils import encode_dss_signature
 
 from ..doubles import DummyKeySerializationEncryption
 from ..utils import (
+    load_decrypt_vectors,
     load_fips_ecdsa_key_pair_vectors,
     load_fips_ecdsa_signing_vectors,
     load_nist_vectors,
@@ -254,7 +255,7 @@ class TestECDSAVectors:
             is False
         )
 
-    def test_unknown_signature_algoritm(self, backend):
+    def test_unknown_signature_algorithm(self, backend):
         _skip_curve_unsupported(backend, ec.SM2())
 
         key = ec.generate_private_key(ec.SM2(), backend)
@@ -426,6 +427,23 @@ class TestECDSAVectors:
         signature = private_key.sign(message, algorithm)
         public_key = private_key.public_key()
         public_key.verify(signature, message, algorithm)
+
+    def test_encrypt_decrypt(self, backend):
+        _skip_curve_unsupported(backend, ec.SM2())
+        message = b"one little message"
+        private_key = ec.generate_private_key(ec.SM2(), backend)
+        public_key = private_key.public_key()
+        ciphertext = public_key.encrypt(message)
+        assert private_key.decrypt(ciphertext) == message
+
+    def test_encrypt_decrypt_with_empty_message(self, backend):
+        _skip_curve_unsupported(backend, ec.SM2())
+        message = b""
+        private_key = ec.generate_private_key(ec.SM2(), backend)
+        public_key = private_key.public_key()
+        ciphertext = public_key.encrypt(message)
+        assert ciphertext == b""
+        assert private_key.decrypt(ciphertext) == message
 
 
 class TestECNumbersEquality:
@@ -952,6 +970,19 @@ class TestECDSAWithPEM:
         signature = key.sign(msg, ec.ECDSA(hashes.SM3()))
         pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
 
+    def test_encrypt_decrypt_with_gen_pem(self, backend):
+        _skip_curve_unsupported(backend, ec.SM2())
+        msg = b"hello"
+        key = ec.generate_private_key(ec.SM2(), backend)
+
+        pem = key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        pubkey = serialization.load_pem_public_key(pem, backend)
+        ciphertext = pubkey.encrypt(msg)
+        assert key.decrypt(ciphertext) == msg
+
     def test_sign_verify_from_pem(self, backend):
         _skip_curve_unsupported(backend, ec.SM2())
         msg = b"hello"
@@ -976,6 +1007,30 @@ class TestECDSAWithPEM:
         )
         assert isinstance(pubkey, ec.EllipticCurvePublicKey)
         pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
+
+    def test_encrypt_decrypt_from_pem(self, backend):
+        _skip_curve_unsupported(backend, ec.SM2())
+        msg = b"hello"
+        privkey = load_vectors_from_file(
+            os.path.join(
+                "asymciphers", "PEM_Serialization", "sm2_private_key.pem"
+            ),
+            lambda pemfile: serialization.load_pem_private_key(
+                pemfile.read().encode(), None, backend
+            ),
+        )
+
+        pubkey = load_vectors_from_file(
+            os.path.join(
+                "asymciphers", "PEM_Serialization", "sm2_public_key.pem"
+            ),
+            lambda pemfile: serialization.load_pem_public_key(
+                pemfile.read().encode(), backend
+            ),
+        )
+
+        ciphertext = pubkey.encrypt(msg)
+        assert privkey.decrypt(ciphertext) == msg
 
     def test_sign_verify_from_der(self, backend):
         _skip_curve_unsupported(backend, ec.SM2())
@@ -1004,3 +1059,48 @@ class TestECDSAWithPEM:
         )
         assert isinstance(pubkey, ec.EllipticCurvePublicKey)
         pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
+
+    def test_encrypt_decrypt_from_der(self, backend):
+        _skip_curve_unsupported(backend, ec.SM2())
+        msg = b"hello"
+
+        privkey = load_vectors_from_file(
+            os.path.join(
+                "asymciphers", "DER_Serialization", "sm2_private_key.der"
+            ),
+            lambda pemfile: serialization.load_der_private_key(
+                pemfile.read(), None, backend
+            ),
+            mode="rb",
+        )
+
+        pubkey = load_vectors_from_file(
+            os.path.join(
+                "asymciphers", "DER_Serialization", "sm2_public_key.der"
+            ),
+            lambda pemfile: serialization.load_der_public_key(
+                pemfile.read(), backend
+            ),
+            mode="rb",
+        )
+
+        ciphertext = pubkey.encrypt(msg)
+        assert privkey.decrypt(ciphertext) == msg
+
+    def test_decrypt_with_vectors_from_pem(self, backend, subtests):
+        _skip_curve_unsupported(backend, ec.SM2())
+        privkey = load_vectors_from_file(
+            os.path.join(
+                "asymciphers", "SM2", "Decrypt", "sm2_private_key.pem"
+            ),
+            lambda pemfile: serialization.load_pem_private_key(
+                pemfile.read().encode(), None, backend
+            ),
+        )
+        vectors = load_vectors_from_file(
+            os.path.join("asymciphers", "SM2", "Decrypt", "DecryptGen.txt"),
+            load_decrypt_vectors,
+        )
+        for vector in vectors:
+            with subtests.test():
+                assert privkey.decrypt(vector["input"]) == vector["output"]

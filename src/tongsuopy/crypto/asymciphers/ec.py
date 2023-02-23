@@ -77,6 +77,12 @@ class EllipticCurvePrivateKey(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
+    def decrypt(self, data: bytes) -> bytes:
+        """
+        Decrypts the data
+        """
+
+    @abc.abstractmethod
     def private_numbers(self) -> "EllipticCurvePrivateNumbers":
         """
         Returns an EllipticCurvePrivateNumbers.
@@ -135,6 +141,12 @@ class EllipticCurvePublicKey(metaclass=abc.ABCMeta):
     ) -> None:
         """
         Verifies the signature of the data.
+        """
+
+    @abc.abstractmethod
+    def encrypt(self, data: bytes) -> bytes:
+        """
+        Encrypts the data
         """
 
     @classmethod

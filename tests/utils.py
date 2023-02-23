@@ -307,3 +307,34 @@ def load_nist_ccm_vectors(vector_data):
             test_data[name.lower()] = value.encode("ascii")
 
     return data
+
+
+def load_decrypt_vectors(vector_data):
+    data = []
+    test_data = {}
+
+    for line in vector_data:
+        line = line.strip()
+
+        # Blank lines and comments should be ignored
+        if not line or line.startswith("#"):
+            continue
+
+        name, value = [c.strip() for c in line.split("=")]
+        name = name.lower()
+
+        if name in ["input"]:
+            test_data[name] = binascii.unhexlify(value)
+        elif name in ["output"]:
+            # Remove quotes and convert to bytes.
+            test_data[name] = value[1:-1].encode("ascii")
+        else:
+            test_data[name] = value
+
+        # COUNT is a special token that indicates a new block of data
+        if name.lower() == "count":
+            test_data = {}
+            data.append(test_data)
+            continue
+
+    return data
