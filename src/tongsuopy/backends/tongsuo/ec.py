@@ -31,6 +31,15 @@ def _check_signature_algorithm(
         )
 
 
+def check_evp_pkey_algorithm(backend: "Backend", evp_pkey) -> None:
+    if backend._lib.EVP_PKEY_is_sm2(evp_pkey):
+        return
+    raise UnsupportedAlgorithm(
+        "Unsupported EVP_PKEY algorithm",
+        _Reasons.UNSUPPORTED_PUBLIC_KEY_ALGORITHM,
+    )
+
+
 def _ec_key_curve_sn(backend: "Backend", ec_key) -> str:
     group = backend._lib.EC_KEY_get0_group(ec_key)
     backend.openssl_assert(group != backend._ffi.NULL)
@@ -175,6 +184,80 @@ def _ecdsa_sig_setup(
     return mctx
 
 
+def _sm2_crypt_setup(
+    backend: "Backend",
+    data: bytes,
+    key: typing.Union["_EllipticCurvePublicKey", "_EllipticCurvePrivateKey"],
+    init_func: typing.Callable[[typing.Any], int],
+    exec_func: typing.Callable[
+        [typing.Any, typing.Any, typing.Any, typing.Any, typing.Any], int
+    ],
+) -> bytes:
+    pctx = backend._lib.EVP_PKEY_CTX_new(key._evp_pkey, backend._ffi.NULL)
+    if pctx == backend._ffi.NULL:
+        errors = backend._consume_errors_with_text()
+        raise ValueError(
+            "Unable to allocate key algorithm context "
+            "using the algorithm specified in pkey",
+            errors,
+        )
+
+    pctx = backend._ffi.gc(pctx, backend._lib.EVP_PKEY_CTX_free)
+
+    if init_func(pctx) <= 0:
+        errors = backend._consume_errors_with_text()
+        raise ValueError("Unable to initialize key algorithm context", errors)
+
+    buflen = backend._ffi.new("size_t *")
+    res = exec_func(pctx, backend._ffi.NULL, buflen, data, len(data))
+    backend.openssl_assert(res == 1)
+    buf = backend._ffi.new("unsigned char[]", buflen[0])
+    res = exec_func(pctx, buf, buflen, data, len(data))
+    if res != 1:
+        errors = backend._consume_errors_with_text()
+        action = ("encrypt", "decrypt")[
+            exec_func == backend._lib.EVP_PKEY_decrypt
+        ]
+        raise ValueError("Failed to {action}".format(action=action), errors)
+
+    return backend._ffi.buffer(buf)[: buflen[0]]
+
+
+def _sm2_encrypt(
+    backend: "Backend",
+    public_key: "_EllipticCurvePublicKey",
+    data: bytes,
+) -> bytes:
+    if len(data) == 0:
+        # Empty content does not need to be encrypted, and returns b"".
+        return b""
+    return _sm2_crypt_setup(
+        backend,
+        data,
+        public_key,
+        backend._lib.EVP_PKEY_encrypt_init,
+        backend._lib.EVP_PKEY_encrypt,
+    )
+
+
+def _sm2_decrypt(
+    backend: "Backend",
+    private_key: "_EllipticCurvePrivateKey",
+    data: bytes,
+) -> bytes:
+    if len(data) == 0:
+        # Empty ciphertext is considered to be the encrypted result of
+        # empty content.
+        return b""
+    return _sm2_crypt_setup(
+        backend,
+        data,
+        private_key,
+        backend._lib.EVP_PKEY_decrypt_init,
+        backend._lib.EVP_PKEY_decrypt,
+    )
+
+
 class _EllipticCurvePrivateKey(ec.EllipticCurvePrivateKey):
     def __init__(self, backend: "Backend", ec_key_cdata, evp_pkey):
         self._backend = backend
@@ -263,6 +346,10 @@ class _EllipticCurvePrivateKey(ec.EllipticCurvePrivateKey):
         return _ecdsa_sig_sign(
             self._backend, signature_algorithm.algorithm, self, data
         )
+
+    def decrypt(self, data: bytes) -> bytes:
+        check_evp_pkey_algorithm(self._backend, self._evp_pkey)
+        return _sm2_decrypt(self._backend, self, data)
 
 
 class _EllipticCurvePublicKey(ec.EllipticCurvePublicKey):
@@ -362,3 +449,7 @@ class _EllipticCurvePublicKey(ec.EllipticCurvePublicKey):
         _ecdsa_sig_verify(
             self._backend, signature_algorithm.algorithm, self, signature, data
         )
+
+    def encrypt(self, data: bytes) -> bytes:
+        check_evp_pkey_algorithm(self._backend, self._evp_pkey)
+        return _sm2_encrypt(self._backend, self, data)

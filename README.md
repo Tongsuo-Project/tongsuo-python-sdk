@@ -20,6 +20,27 @@ signature = key.sign(msg, ec.ECDSA(hashes.SM3()))
 pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
 ```
 
+
+SM2加密和解密，详见[sm2_encrypt_decrypt_from_pem.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm2_encrypt_decrypt_from_pem.py)
+```python
+from tongsuopy.crypto import serialization
+from tongsuopy.crypto.asymciphers import ec
+
+msg = b"hello"
+key = ec.generate_private_key(ec.SM2())
+
+pem = key.public_key().public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+)
+pubkey = serialization.load_pem_public_key(pem)
+
+ciphertext = pubkey.encrypt(msg)
+decrypt_text = key.decrypt(ciphertext)
+assert decrypt_text == msg
+```
+
+
 SM3杂凑，详见[sm3.py](https://github.com/Tongsuo-Project/tongsuo-python-sdk/blob/main/demos/sm3.py)
 ```python
 from tongsuopy.crypto import hashes
@@ -60,6 +81,7 @@ pip install tongsuopy
 
 ## 功能特性
 
+- 支持SM2加密和解密
 - 支持SM2签名和验签
 - 支持SM3杂凑算法
 - 支持SM4加解密，包括ECB、CBC、OFB、CFB、CTR模式
