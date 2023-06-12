@@ -8,7 +8,10 @@ on:
         description: The version to build
 
 env:
+  PYPI_NAME: tongsuopy
   TONGSUO_VERSION: 8.3.2
+  INNER_WORKSPACE: /workspace
+  INNER_BUILD_DIR: /build
 
 jobs:
   sdist:
@@ -62,19 +65,6 @@ jobs:
       - uses: actions/download-artifact@v3.0.1
         with:
           name: tongsuopy-sdist
-      - name: Set TONGSUO_HOME
-        shell: bash
-        run: echo "TONGSUO_HOME=${GITHUB_WORKSPACE}/tongsuo${TONGSUO_VERSION}" >> $GITHUB_ENV
-      - name: Build Tongsuo
-        working-directory: ${{ runner.temp }}
-        run: |
-          wget "https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/${TONGSUO_VERSION}.tar.gz"
-          tar zxf "${TONGSUO_VERSION}.tar.gz"
-          cd "Tongsuo-${TONGSUO_VERSION}"
-          ./config no-shared enable-ntls --release --prefix=${TONGSUO_HOME}
-          make -s -j4
-          make install_sw
-          cd -
       - run: /opt/python/${{ matrix.PYTHON.VERSION }}/bin/python -m venv .venv
       - name: Install Python dependencies
         run: .venv/bin/pip install -U pip wheel cffi
@@ -97,7 +87,7 @@ jobs:
           else
             exit 0
           fi
-      - run: .venv/bin/pip install tongsuopy --no-index -f wheelhouse/
+      - run: .venv/bin/pip install ${{ env.PYPI_NAME }} --no-index -f wheelhouse/
       - run: |
           .venv/bin/python -c "from tongsuopy.backends.tongsuo.backend import backend;print('Loaded: ' + backend.openssl_version_text());print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
       - run: mkdir tongsuopy-wheelhouse
@@ -108,7 +98,97 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages_dir: tongsuopy-wheelhouse/
           print_hash: true
-#          repository_url: https://test.pypi.org/legacy/
+
+  manylinux-aarch64:
+    needs: [ sdist ]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON:
+          - { VERSION: "cp36-cp36m", ABI_VERSION: 'cp36' }
+          - { VERSION: "pp38-pypy38_pp73" }
+          - { VERSION: "pp39-pypy39_pp73" }
+        MANYLINUX:
+          - { NAME: "manylinux2014_aarch64", CONTAINER: "tongsuopy-manylinux2014:aarch64" }
+          - { NAME: "manylinux_2_24_aarch64", CONTAINER: "tongsuopy-manylinux_2_24:aarch64" }
+          - { NAME: "manylinux_2_28_aarch64", CONTAINER: "tongsuopy-manylinux_2_28:aarch64" }
+          - { NAME: "musllinux_1_1_aarch64", CONTAINER: "tongsuopy-musllinux_1_1:aarch64" }
+        exclude:
+          # There are no readily available PyPy distributions
+          - PYTHON: { VERSION: "pp38-pypy38_pp73" }
+            MANYLINUX: { NAME: "musllinux_1_1_aarch64", CONTAINER: "tongsuopy-musllinux_1_1:aarch64" }
+          - PYTHON: { VERSION: "pp39-pypy39_pp73" }
+            MANYLINUX: { NAME: "musllinux_1_1_aarch64", CONTAINER: "tongsuopy-musllinux_1_1:aarch64" }
+
+
+    name: "${{ matrix.PYTHON.VERSION }} for ${{ matrix.MANYLINUX.NAME }}"
+    steps:
+      - uses: actions/download-artifact@v3.0.1
+        with:
+          name: tongsuopy-sdist
+          path: ${{ github.workspace }}
+
+      - uses: uraimo/run-on-arch-action@v2
+        name: Build artifact
+        with:
+          arch: none
+          distro: none
+          base_image: --platform=linux/arm64 ghcr.io/tongsuo-project/${{ matrix.MANYLINUX.CONTAINER }}
+
+          # Not required, but speeds up builds
+          githubToken: ${{ secrets.PAT }}
+
+          # Mount the artifacts directory as /artifacts in the container
+          dockerRunArgs: |
+            --volume "${{ github.workspace }}:${{ env.INNER_WORKSPACE }}"
+            --volume "${{ runner.temp }}:${{ env.INNER_BUILD_DIR }}"
+
+          # Pass some environment variables to the container
+          env: |
+            INNER_WORKSPACE: "${{ env.INNER_WORKSPACE }}"
+            INNER_BUILD_DIR: "${{ env.INNER_BUILD_DIR }}"
+            PYTHON_VERSION: "${{ matrix.PYTHON.VERSION }}"
+            PYTHON_ABI_VERSION: "${{ matrix.PYTHON.ABI_VERSION }}"
+            MANYLINUX_NAME: "${{ matrix.MANYLINUX.NAME }}"
+
+          # Produce a binary artifact and place it in the mounted volume
+          run: |
+            cd ${INNER_BUILD_DIR}
+            /opt/python/${PYTHON_VERSION}/bin/python -m venv .venv
+            .venv/bin/pip install -U pip wheel cffi
+            
+            cd ${INNER_WORKSPACE}
+            tar zxvf tongsuopy*.tar.gz && rm tongsuopy*.tar.gz && mkdir tmpwheelhouse
+            PY_LIMITED_API=""
+            if [ -n "${PYTHON_ABI_VERSION}" ]; then
+              PY_LIMITED_API="--py-limited-api=${PYTHON_ABI_VERSION}"
+            fi
+            cd tongsuopy*
+            ${INNER_BUILD_DIR}/.venv/bin/python setup.py bdist_wheel ${PY_LIMITED_API} && mv dist/tongsuopy*.whl ../tmpwheelhouse
+            
+            cd ${INNER_WORKSPACE}
+            auditwheel repair --plat ${MANYLINUX_NAME} tmpwheelhouse/tongsuopy*.whl -w wheelhouse/
+            unzip wheelhouse/*.whl -d execstack.check
+            results=$(readelf -lW execstack.check/tongsuopy/backends/*.so)
+            count=$(echo "$results" | grep -c 'GNU_STACK.*[R ][W ]E' || true)
+            echo "count -> ${count}"
+            if [ "$count" -ne 0 ]; then
+              exit 1
+            fi
+            
+            cd ${INNER_WORKSPACE}
+            ${INNER_BUILD_DIR}/.venv/bin/pip install ${{ env.PYPI_NAME }} --no-index -f wheelhouse/
+            ${INNER_BUILD_DIR}/.venv/bin/python -c "from tongsuopy.backends.tongsuo.backend import backend;print('Loaded: ' + backend.openssl_version_text());print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"
+            mkdir tongsuopy-wheelhouse
+            mv wheelhouse/tongsuopy*.whl tongsuopy-wheelhouse/
+
+      - name: Publish tongsuopy to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: ${{ github.workspace }}/tongsuopy-wheelhouse/
+          print_hash: true
 
   macos:
     needs: [sdist]
@@ -191,7 +271,7 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.PYTHON.DEPLOYMENT_TARGET }}
           ARCHFLAGS: ${{ matrix.PYTHON.ARCHFLAGS }}
           _PYTHON_HOST_PLATFORM: ${{ matrix.PYTHON._PYTHON_HOST_PLATFORM }}
-      - run: venv/bin/pip install -f wheelhouse --no-index tongsuopy
+      - run: venv/bin/pip install -f wheelhouse --no-index ${{ env.PYPI_NAME }}
       - name: Show the wheel's minimum macOS SDK and architectures
         run: |
           find venv/lib/*/site-packages/tongsuopy/backends -name '*.so' -exec vtool -show {} \;
@@ -270,7 +350,7 @@ jobs:
       - run: tar zxvf tongsuopy*.tar.gz && mkdir wheelhouse
         shell: bash
       - run: cd tongsuopy* && python setup.py bdist_wheel --py-limited-api=${{ matrix.PYTHON.ABI_VERSION }} && mv dist/tongsuopy*.whl ../wheelhouse
-      - run: pip install -f wheelhouse --no-index tongsuopy
+      - run: pip install -f wheelhouse --no-index ${{ env.PYPI_NAME }}
       - name: Print the OpenSSL we built and linked against
         run: |
             python -c "from tongsuopy.backends.tongsuo.backend import backend;print('Loaded: ' + backend.openssl_version_text());print('Linked Against: ' + backend._ffi.string(backend._lib.OPENSSL_VERSION_TEXT).decode('ascii'))"

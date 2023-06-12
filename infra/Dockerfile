@@ -1,7 +1,12 @@
 ARG PYCA_RELEASE
+
 FROM quay.io/pypa/${PYCA_RELEASE}
-ARG PYCA_RELEASE
 MAINTAINER Tongsuo Project Authors
+ARG PYCA_RELEASE
+ARG TONGSUO_HOME
+ARG TONGSUO_VERSION
+ENV TONGSUO_HOME=${TONGSUO_HOME}
+ENV TONGSUO_VERSION=${TONGSUO_VERSION}
 WORKDIR /root
 RUN \
   if [ $(uname -m) = "x86_64" ]; \
@@ -12,6 +17,9 @@ RUN \
       rm -rf /var/cache/yum; \
     elif stat /etc/debian_version 1>&2 2>/dev/null; then \
       export DEBIAN_FRONTEND=noninteractive && \
+      sed -i s/deb.debian.org/archive.debian.org/g /etc/apt/sources.list && \
+      sed -i 's|security.debian.org|archive.debian.org/|g' /etc/apt/sources.list && \
+      sed -i '/stretch-updates/d' /etc/apt/sources.list && \
       apt-get update -qq && \
       apt-get install -qq -y --no-install-recommends wget prelink && \
       apt-get clean -qq && \
@@ -27,13 +35,16 @@ RUN \
   if [ $(uname -m) = "aarch64" ]; \
   then \
     if stat /etc/redhat-release 1>&2 2>/dev/null; then \
-      yum -y install libffi-devel perl-IPC-Cmd && \
+      yum -y install libffi-devel perl-IPC-Cmd wget && \
       yum -y clean all && \
       rm -rf /var/cache/yum; \
     elif stat /etc/debian_version 1>&2 2>/dev/null; then \
       export DEBIAN_FRONTEND=noninteractive && \
+      sed -i s/deb.debian.org/archive.debian.org/g /etc/apt/sources.list && \
+      sed -i 's|security.debian.org|archive.debian.org/|g' /etc/apt/sources.list && \
+      sed -i '/stretch-updates/d' /etc/apt/sources.list && \
       apt-get update -qq && \
-      apt-get install -qq -y --no-install-recommends libffi-dev && \
+      apt-get install -qq -y --no-install-recommends libffi-dev wget prelink && \
       apt-get clean -qq && \
       rm -rf /var/lib/apt/lists/*; \
     else \
@@ -45,3 +56,14 @@ RUN \
       apk add --no-cache gcompat; \
     fi; \
   fi
+
+# build tongsuo
+RUN set -ex && \
+    wget "https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/${TONGSUO_VERSION}.tar.gz" && \
+    tar zxf "${TONGSUO_VERSION}.tar.gz"
+
+RUN set -ex && \
+    cd "Tongsuo-${TONGSUO_VERSION}" && \
+    ./config no-shared enable-ntls --release --prefix=${TONGSUO_HOME} && \
+    make -s -j4 && \
+    make install_sw
