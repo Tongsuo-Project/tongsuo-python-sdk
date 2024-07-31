@@ -18,21 +18,20 @@ concurrency:
 
 jobs:
   linux:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         PYTHON:
-          - {VERSION: "3.11", TOXENV: "py311", TONGSUO: {VERSION: "8.3.1"}}
-          - {VERSION: "3.11", TOXENV: "flake", TONGSUO: {VERSION: "8.3.2"}}
-          - {VERSION: "3.11", TOXENV: "py311-randomorder", TONGSUO: {VERSION: "8.3.2"}}
-          - {VERSION: "3.11", TOXENV: "py311", TONGSUO: {VERSION: "8.3.2"}}
-          - {VERSION: "3.10", TOXENV: "py310", TONGSUO: {VERSION: "8.3.2"}}
-          - {VERSION: "3.9", TOXENV: "py39", TONGSUO: {VERSION: "8.3.2"}}
-          - {VERSION: "3.8", TOXENV: "py38", TONGSUO: {VERSION: "8.3.2"}}
-          - {VERSION: "3.7", TOXENV: "py37", TONGSUO: {VERSION: "8.3.2"}}
-          - {VERSION: "3.6", TOXENV: "py36", TONGSUO: {VERSION: "8.3.2"}}
-    name: "${{ matrix.PYTHON.TOXENV }} tongsuo-${{ matrix.PYTHON.TONGSUO.VERSION }} on Linux"
+          - {VERSION: "3.12", NOXSESSION: "flake"}
+          - {VERSION: "3.12", NOXSESSION: "docs", TONGSUO: "8.4.0"}
+          - {VERSION: "pypy-3.9", NOXSESSION: "tests-nocoverage"}
+          - {VERSION: "pypy-3.10", NOXSESSION: "tests-nocoverage"}
+          - {VERSION: "3.12", NOXSESSION: "tests", TONGSUO: "8.4.0"}
+          - {VERSION: "3.12", NOXSESSION: "tests", TONGSUO: "8.4.0", CONFIG_FLAGS: "no-engine no-rc2 no-srtp no-ct no-psk"}
+          - {VERSION: "3.12", NOXSESSION: "tests", TONGSUO: "8.4.0", CONFIG_FLAGS: "no-legacy", NO_LEGACY: "1"}
+          - {VERSION: "3.12", NOXSESSION: "tests-randomorder"}
+    name: "${{ matrix.PYTHON.NOXSESSION }} with tongsuo-${{ matrix.PYTHON.TONGSUO }} on Linux"
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v3.1.0
@@ -44,12 +43,13 @@ jobs:
         uses: actions/setup-python@v4.3.0
         with:
           python-version: ${{ matrix.PYTHON.VERSION }}
-      - run: python -m pip install tox coverage[toml]
+          cache: pip
+          cache-dependency-path: ci-constraints-requirements.txt
       - name: Set TONGSUO_HOME
         shell: bash
         run: echo "TONGSUO_HOME=${GITHUB_WORKSPACE}/tongsuo${VERSION}" >> $GITHUB_ENV
         env:
-          VERSION: ${{ matrix.PYTHON.TONGSUO.VERSION }}
+          VERSION: ${{ matrix.PYTHON.TONGSUO }}
       - name: Build custom Tongsuo
         working-directory: ${{ runner.temp }}
         run: |
@@ -62,23 +62,38 @@ jobs:
           popd
         env:
           VERSION: ${{ matrix.PYTHON.TONGSUO.VERSION }}
+
+      - run: python -m pip install -c ci-constraints-requirements.txt 'nox' 'tomli; python_version < "3.11"'
+      - name: Create nox environment
+        run: |
+          nox -v --install-only
+        env:
+          NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
+
       - name: Tests
         run: |
-          tox -vvv -r --  --color=yes
+          nox --no-install --  --color=yes
         env:
-          TOXENV: ${{ matrix.PYTHON.TOXENV }}
+          NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
+          COLUMNS: 80
 
       - uses: ./.github/actions/upload-coverage
 
   macos:
-    runs-on: macos-12
+    runs-on: ${{ matrix.RUNNER.OS }}
     strategy:
       fail-fast: false
       matrix:
+        RUNNER:
+          - {OS: 'macos-13', ARCH: 'x86_64'}
+          - {OS: 'macos-14', ARCH: 'arm64'}
         PYTHON:
-          - {VERSION: "3.6", TOXENV: "py36", TONGSUO: {VERSION: "8.3.2"}}
-          - {VERSION: "3.10", TOXENV: "py310", TONGSUO: {VERSION: "8.3.2"}}
-    name: "${{ matrix.PYTHON.TOXENV }} tongsuo-${{ matrix.PYTHON.TONGSUO.VERSION }} on macOS"
+          - {VERSION: "3.7", NOXSESSION: "tests-nocoverage"}
+          - {VERSION: "3.12", NOXSESSION: "tests"}
+        exclude:
+          # We only test latest Python on arm64. py37 won't work since there's no universal2 binary
+          - PYTHON: {VERSION: "3.7", NOXSESSION: "tests-nocoverage"}
+            RUNNER: {OS: 'macos-14', ARCH: 'arm64'}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v3.1.0
@@ -90,12 +105,15 @@ jobs:
         uses: actions/setup-python@v4.3.0
         with:
           python-version: ${{ matrix.PYTHON.VERSION }}
-      - run: python -m pip install tox coverage[toml]
+          cache: pip
+          cache-dependency-path: ci-constraints-requirements.txt
+        timeout-minutes: 3
+      - run: python -m pip install -c ci-constraints-requirements.txt 'nox' 'tomli; python_version < "3.11"'
       - name: Set TONGSUO_HOME
         shell: bash
         run: echo "TONGSUO_HOME=${GITHUB_WORKSPACE}/tongsuo${VERSION}" >> $GITHUB_ENV
         env:
-          VERSION: ${{ matrix.PYTHON.TONGSUO.VERSION }}
+          VERSION: 8.4.0
       - name: Build custom Tongsuo
         run: |
           wget "https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/${VERSION}.tar.gz"
@@ -106,14 +124,20 @@ jobs:
           make install_sw
           popd
         env:
-          VERSION: ${{ matrix.PYTHON.TONGSUO.VERSION }}
+          VERSION: 8.4.0
+      - name: Build nox environment
+        run: |
+          nox -v --install-only
+        env:
+          NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
       - name: Tests
         run: |
           # delete openssl/include installed in macos-12, fix cffi compile failed
-          rm -rf /usr/local/opt/openssl@1.1/include
-          tox -vvv -r --  --color=yes
+          # rm -rf /usr/local/opt/openssl@1.1/include
+          nox --no-install --  --color=yes
         env:
-          TOXENV: ${{ matrix.PYTHON.TOXENV }}
+          NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
+          COLUMNS: 80
 
       - uses: ./.github/actions/upload-coverage
 
@@ -126,10 +150,9 @@ jobs:
           - { ARCH: 'x86', WINDOWS: 'win32', CONFIG: 'VC-WIN32' }
           - { ARCH: 'x64', WINDOWS: 'win64', CONFIG: 'VC-WIN64A' }
         PYTHON:
-          - {VERSION: "3.6", TOXENV: "py36", TONGSUO: {VERSION: "8.3.2"}}
-          - {VERSION: "3.11", TOXENV: "py311", TONGSUO: {VERSION: "8.3.2"}}
+          - {VERSION: "3.7", NOXSESSION: "tests-nocoverage", TONGSUO: "8.4.0"}
+          - {VERSION: "3.12", NOXSESSION: "tests", TONGSUO: "8.4.0"}
         JOB_NUMBER: [0, 1, 2]
-    name: "${{ matrix.PYTHON.TOXENV }} tongsuo-${{ matrix.PYTHON.TONGSUO.VERSION }} on ${{ matrix.WINDOWS.WINDOWS }} (part ${{ matrix.JOB_NUMBER }})"
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v3.1.0
@@ -150,24 +173,24 @@ jobs:
         with:
           python-version: ${{ matrix.PYTHON.VERSION }}
           architecture: ${{ matrix.WINDOWS.ARCH }}
-      - run: python -m pip install tox coverage[toml]
+      - run: python -m pip install -c ci-constraints-requirements.txt "nox" "tomli; python_version < '3.11'"
       - name: Export env
         shell: bash
         run: |
           echo "TONGSUO_VERSION=${VERSION}" >> $GITHUB_ENV
           echo "TONGSUO_HOME=${GITHUB_WORKSPACE}\tongsuo${VERSION}" >> $GITHUB_ENV
         env:
-          VERSION: ${{ matrix.PYTHON.TONGSUO.VERSION }}
+          VERSION: ${{ matrix.PYTHON.TONGSUO }}
       - name: Download Tongsuo source
         run: |
           wget "https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags/${env:TONGSUO_VERSION}.tar.gz" -OutFile "${env:TONGSUO_VERSION}.tar.gz"
         shell: powershell
-      - run: '"C:\Program Files\WinRAR\WinRAR.exe" -INUL x ${{ matrix.PYTHON.TONGSUO.VERSION }}.tar.gz'
+      - run: '"C:\Program Files\WinRAR\WinRAR.exe" -INUL x ${{ matrix.PYTHON.TONGSUO }}.tar.gz'
         shell: cmd
       - name: Build custom Tongsuo
         shell: cmd
         run: |
-          pushd "Tongsuo-${{ matrix.PYTHON.TONGSUO.VERSION }}"
+          pushd "Tongsuo-${{ matrix.PYTHON.TONGSUO }}"
           mkdir _build
           pushd _build
           perl ..\Configure no-makedepend no-shared ${{ matrix.WINDOWS.CONFIG }} --prefix=%TONGSUO_HOME%
@@ -175,12 +198,16 @@ jobs:
           nmake install_sw
           popd
           popd
+      - name: Build nox environment
+        run: nox -v --install-only
+        env:
+          NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
       - name: Tests
         run: |
-          python3 -c "import sys; print(sys.platform);"
-          tox -vvv -r --  --color=yes --num-shards=3 --shard-id=${{ matrix.JOB_NUMBER }}
+          nox --no-install --  --color=yes
         env:
-          TOXENV: ${{ matrix.PYTHON.TOXENV }}
+          NOXSESSION: ${{ matrix.PYTHON.NOXSESSION }}
+          COLUMNS: 80
 
       - uses: ./.github/actions/upload-coverage
 
@@ -189,6 +216,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [linux, macos, windows]
     if: ${{ always() }}
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v3.1.0
         timeout-minutes: 3
@@ -202,14 +230,17 @@ jobs:
         if: ${{ always() }}
         uses: actions/setup-python@v4.3.0
         with:
-          python-version: '3.10'
-      - run: pip install coverage[toml]
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ci-constraints-requirements.txt
+      - run: pip install -c ci-constraints-requirements.txt coverage[toml]
         if: ${{ always() }}
       - name: Download coverage data
         if: ${{ always() }}
-        uses: actions/download-artifact@v3.0.1
+        uses: actions/download-artifact@v4
         with:
-          name: coverage-data
+          pattern: coverage-data-*
+          merge-multiple: true
       - name: Combine coverage and fail if it's <85%.
         if: ${{ always() }}
         id: combinecoverage

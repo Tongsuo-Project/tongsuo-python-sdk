@@ -80,14 +80,14 @@ class Backend:
         return self._lib.OpenSSL_version_num()
 
     def create_symmetric_encryption_ctx(
-        self, cipher: CipherAlgorithm, mode: Mode
+        self, cipher: CipherAlgorithm, mode: Mode, padding: bool
     ) -> _CipherContext:
-        return _CipherContext(self, cipher, mode, _CipherContext._ENCRYPT)
+        return _CipherContext(self, cipher, mode, padding, _CipherContext._ENCRYPT)
 
     def create_symmetric_decryption_ctx(
-        self, cipher: CipherAlgorithm, mode: Mode
+        self, cipher: CipherAlgorithm, mode: Mode, padding: bool
     ) -> _CipherContext:
-        return _CipherContext(self, cipher, mode, _CipherContext._DECRYPT)
+        return _CipherContext(self, cipher, mode, padding, _CipherContext._DECRYPT)
 
     def cipher_supported(self, cipher: CipherAlgorithm, mode: Mode) -> bool:
         try:

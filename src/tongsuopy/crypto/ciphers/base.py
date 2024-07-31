@@ -79,6 +79,7 @@ class Cipher(typing.Generic[Mode]):
         self,
         algorithm: CipherAlgorithm,
         mode: Mode,
+        padding: bool = False,
         backend: typing.Any = None,
     ):
         if not isinstance(algorithm, CipherAlgorithm):
@@ -92,18 +93,17 @@ class Cipher(typing.Generic[Mode]):
 
         self.algorithm = algorithm
         self.mode = mode
+        self.padding = padding
 
     @typing.overload
     def encryptor(
         self: "Cipher[modes.ModeWithAuthenticationTag]",
-    ) -> AEADEncryptionContext:
-        ...
+    ) -> AEADEncryptionContext: ...
 
     @typing.overload
     def encryptor(
         self: "_CIPHER_TYPE",
-    ) -> CipherContext:
-        ...
+    ) -> CipherContext: ...
 
     def encryptor(self):
         if isinstance(self.mode, modes.ModeWithAuthenticationTag):
@@ -114,27 +114,25 @@ class Cipher(typing.Generic[Mode]):
         from tongsuopy.backends.tongsuo import backend
 
         ctx = backend.create_symmetric_encryption_ctx(
-            self.algorithm, self.mode
+            self.algorithm, self.mode, self.padding
         )
         return self._wrap_ctx(ctx, encrypt=True)
 
     @typing.overload
     def decryptor(
         self: "Cipher[modes.ModeWithAuthenticationTag]",
-    ) -> AEADDecryptionContext:
-        ...
+    ) -> AEADDecryptionContext: ...
 
     @typing.overload
     def decryptor(
         self: "_CIPHER_TYPE",
-    ) -> CipherContext:
-        ...
+    ) -> CipherContext: ...
 
     def decryptor(self):
         from tongsuopy.backends.tongsuo import backend
 
         ctx = backend.create_symmetric_decryption_ctx(
-            self.algorithm, self.mode
+            self.algorithm, self.mode, self.padding
         )
         return self._wrap_ctx(ctx, encrypt=False)
 

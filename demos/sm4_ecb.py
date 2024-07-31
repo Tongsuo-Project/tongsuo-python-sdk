@@ -7,25 +7,22 @@ import binascii
 from tongsuopy.crypto.ciphers import Cipher, algorithms, modes
 
 key = b"0123456789ABCDEFFEDCBA9876543210"
-iv = b"0123456789ABCDEFFEDCBA9876543210"
-plaintext = b"0123456789ABCDEFFEDCBA98765432100123456789ABCDEFFEDCBA9876543210"
-ciphertext = (
-    b"2677F46B09C122CC975533105BD4A22AF6125F7275CE552C3A2BBCF533DE8A3B"
+plaintext = b"0123456789ABCDEFFEDCBA9876543210"
+ciphertext = b"681EDF34D206965E86B3E94F536E4246"
+
+cipher = Cipher(
+    algorithms.SM4(binascii.unhexlify(key)), modes.ECB()
 )
 
-print("SM4-CBC\nkey={}\niv={}\nplaintext={}\nciphertext={}".format(key, iv, plaintext, ciphertext))
-
-c = Cipher(
-    algorithms.SM4(binascii.unhexlify(key)), modes.CBC(binascii.unhexlify(iv))
-)
-
-enc = c.encryptor()
+enc = cipher.encryptor()
 actual_ciphertext = enc.update(binascii.unhexlify(plaintext))
 actual_ciphertext += enc.finalize()
 
 assert binascii.hexlify(actual_ciphertext).upper() == ciphertext
 
-dec = c.decryptor()
+print("SM4-ECB\nkey={}\nplaintext={}\nciphertext={}".format(key, plaintext, binascii.hexlify(actual_ciphertext)))
+
+dec = cipher.decryptor()
 actual_plaintext = dec.update(binascii.unhexlify(ciphertext))
 actual_plaintext += dec.finalize()
 

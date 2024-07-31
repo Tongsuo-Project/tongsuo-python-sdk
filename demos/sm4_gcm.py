@@ -21,12 +21,13 @@ ciphertext = (
     b"15A56834CBCF98C397B4024A2691233B8D"
 )
 
+print("SM4-GCM\nkey={}\niv={}\naad={}\nplaintext={}\ntag={}\nciphertext={}".format(key, iv, aad, plaintext, tag, ciphertext))
 
-c = Cipher(
+cipher = Cipher(
     algorithms.SM4(binascii.unhexlify(key)), modes.GCM(binascii.unhexlify(iv))
 )
 
-enc = c.encryptor()
+enc = cipher.encryptor()
 enc.authenticate_additional_data(binascii.unhexlify(aad))
 actual_ciphertext = enc.update(binascii.unhexlify(plaintext))
 actual_ciphertext += enc.finalize()
@@ -34,12 +35,12 @@ actual_ciphertext += enc.finalize()
 assert binascii.hexlify(enc.tag).upper() == tag
 assert binascii.hexlify(actual_ciphertext).upper() == ciphertext
 
-c = Cipher(
+cipher = Cipher(
     algorithms.SM4(binascii.unhexlify(key)),
     modes.GCM(binascii.unhexlify(iv), binascii.unhexlify(tag)),
 )
 
-dec = c.decryptor()
+dec = cipher.decryptor()
 dec.authenticate_additional_data(binascii.unhexlify(aad))
 actual_plaintext = dec.update(binascii.unhexlify(ciphertext))
 actual_plaintext += dec.finalize()

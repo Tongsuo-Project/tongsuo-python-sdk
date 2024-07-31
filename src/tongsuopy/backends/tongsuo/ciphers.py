@@ -23,7 +23,7 @@ class _CipherContext:
     _MAX_CHUNK_SIZE = 2**30 - 1
 
     def __init__(
-        self, backend: "Backend", cipher, mode, operation: int
+        self, backend: "Backend", cipher, mode, padding, operation: int
     ) -> None:
         self._backend = backend
         self._cipher = cipher
@@ -138,9 +138,11 @@ class _CipherContext:
 
         self._backend.openssl_assert(res != 0, errors=errors)
 
-        # We purposely disable padding here as it's handled higher up in the
-        # API.
-        self._backend._lib.EVP_CIPHER_CTX_set_padding(ctx, 0)
+        if padding:
+            self._backend._lib.EVP_CIPHER_CTX_set_padding(ctx, 1)
+        else:
+            self._backend._lib.EVP_CIPHER_CTX_set_padding(ctx, 0)
+
         self._ctx = ctx
 
     def update(self, data: bytes) -> bytes:
