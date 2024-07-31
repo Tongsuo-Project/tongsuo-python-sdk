@@ -42,7 +42,7 @@ def _extra_objects(platform):
 
     suffix = ".a"
     return [
-        os.path.join(lib_dir, "libssl{}".format(suffix)),
+        os.path.join(lib_dir, f"libssl{suffix}"),
         os.path.join(lib_dir, "libcrypto{}").format(suffix),
     ]
 

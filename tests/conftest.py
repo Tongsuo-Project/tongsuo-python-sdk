@@ -12,7 +12,7 @@ def pytest_configure(config):
 def pytest_report_header(config):
     return "\n".join(
         [
-            "OpenSSL: {}".format(openssl_backend.openssl_version_text()),
+            f"OpenSSL: {openssl_backend.openssl_version_text()}",
         ]
     )
 

@@ -9,16 +9,16 @@ import pytest
 from tongsuopy.crypto import hashes
 from tongsuopy.crypto.exceptions import AlreadyFinalized, _Reasons
 
-from .utils import generate_base_hash_test, generate_hash_test
 from ..doubles import DummyHashAlgorithm
 from ..utils import load_hash_vectors, raises_unsupported_algorithm
+from .utils import generate_base_hash_test, generate_hash_test
 
 
 class TestHashContext:
     def test_hash_reject_unicode(self, backend):
         m = hashes.Hash(hashes.SM3(), backend=backend)
         with pytest.raises(TypeError):
-            m.update("\u00FC")  # type: ignore[arg-type]
+            m.update("\u00fc")  # type: ignore[arg-type]
 
     def test_hash_algorithm_instance(self, backend):
         with pytest.raises(TypeError):

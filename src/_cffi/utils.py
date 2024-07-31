@@ -9,7 +9,6 @@ from distutils.dist import Distribution
 
 from cffi import FFI
 
-
 # Load the tongsuopy/__about__ to get the current package version
 base_src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 about = {}

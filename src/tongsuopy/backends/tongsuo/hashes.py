@@ -7,7 +7,6 @@ import typing
 from tongsuopy.crypto import hashes
 from tongsuopy.crypto.exceptions import UnsupportedAlgorithm, _Reasons
 
-
 if typing.TYPE_CHECKING:
     from tongsuopy.backends.tongsuo.backend import Backend
 
@@ -28,9 +27,8 @@ class _HashContext(hashes.HashContext):
             evp_md = self._backend._evp_md_from_algorithm(algorithm)
             if evp_md == self._backend._ffi.NULL:
                 raise UnsupportedAlgorithm(
-                    "{} is not a supported hash on this backend.".format(
-                        algorithm.name
-                    ),
+                    f"{algorithm.name} is not a supported hash on this "
+                    "backend.",
                     _Reasons.UNSUPPORTED_HASH,
                 )
             res = self._backend._lib.EVP_DigestInit_ex(

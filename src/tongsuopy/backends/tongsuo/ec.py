@@ -7,15 +7,13 @@ import typing
 from tongsuopy.backends.tongsuo.utils import (
     _evp_pkey_derive,
 )
-from tongsuopy.crypto import hashes
-from tongsuopy.crypto import serialization
+from tongsuopy.crypto import hashes, serialization
 from tongsuopy.crypto.asymciphers import ec
 from tongsuopy.crypto.exceptions import (
     InvalidSignature,
     UnsupportedAlgorithm,
     _Reasons,
 )
-
 
 if typing.TYPE_CHECKING:
     from tongsuopy.backends.tongsuo.backend import Backend
@@ -95,7 +93,7 @@ def _sn_to_elliptic_curve(backend: "Backend", sn: str) -> ec.EllipticCurve:
         return ec._CURVE_TYPES[sn]()
     except KeyError:
         raise UnsupportedAlgorithm(
-            "{} is not a supported elliptic curve".format(sn),
+            f"{sn} is not a supported elliptic curve",
             _Reasons.UNSUPPORTED_ELLIPTIC_CURVE,
         )
 
@@ -168,9 +166,7 @@ def _ecdsa_sig_setup(
     evp_md = backend._evp_md_from_algorithm(algorithm)
     if evp_md == backend._ffi.NULL:
         raise UnsupportedAlgorithm(
-            "{} is not a supported hash on this backend.".format(
-                algorithm.name
-            ),
+            f"{algorithm.name} is not a supported hash on this backend.",
             _Reasons.UNSUPPORTED_HASH,
         )
 
@@ -218,7 +214,7 @@ def _sm2_crypt_setup(
         action = ("encrypt", "decrypt")[
             exec_func == backend._lib.EVP_PKEY_decrypt
         ]
-        raise ValueError("Failed to {action}".format(action=action), errors)
+        raise ValueError(f"Failed to {action}", errors)
 
     return backend._ffi.buffer(buf)[: buflen[0]]
 

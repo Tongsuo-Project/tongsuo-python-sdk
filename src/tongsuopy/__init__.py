@@ -12,7 +12,6 @@ from tongsuopy.__about__ import (
 )
 from tongsuopy.crypto.utils import CryptographyDeprecationWarning
 
-
 __all__ = [
     "__version__",
     "__author__",

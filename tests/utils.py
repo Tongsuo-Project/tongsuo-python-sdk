@@ -12,9 +12,7 @@ from contextlib import contextmanager
 import pytest
 
 from tests import open_vector_file
-
 from tongsuopy.crypto.exceptions import UnsupportedAlgorithm
-
 
 HashVector = collections.namedtuple("HashVector", ["message", "digest"])
 KeyedHashVector = collections.namedtuple(
@@ -66,7 +64,7 @@ def load_nist_vectors(vector_data):
             continue
 
         # Build our data using a simple Key = Value format
-        name, value = [c.strip() for c in line.split("=")]
+        name, value = (c.strip() for c in line.split("="))
 
         # Some tests (PBKDF2) contain \0, which should be interpreted as a
         # null character rather than literal.
@@ -253,7 +251,7 @@ def load_nist_ccm_vectors(vector_data):
         # Some of the CCM vectors have global values for this. They are always
         # at the top before the first section header (see: VADT, VNT, VPT)
         if line.startswith(("Alen", "Plen", "Nlen", "Tlen")):
-            name, value = [c.strip() for c in line.split("=")]
+            name, value = (c.strip() for c in line.split("="))
             global_data[name.lower()] = int(value)
             continue
 
@@ -264,11 +262,11 @@ def load_nist_ccm_vectors(vector_data):
             section = line[1:-1]
             items = [c.strip() for c in section.split(",")]
             for item in items:
-                name, value = [c.strip() for c in item.split("=")]
+                name, value = (c.strip() for c in item.split("="))
                 section_data[name.lower()] = int(value)
             continue
 
-        name, value = [c.strip() for c in line.split("=")]
+        name, value = (c.strip() for c in line.split("="))
 
         if name.lower() in ("key", "nonce") and new_section:
             section_data[name.lower()] = value.encode("ascii")
@@ -320,7 +318,7 @@ def load_decrypt_vectors(vector_data):
         if not line or line.startswith("#"):
             continue
 
-        name, value = [c.strip() for c in line.split("=")]
+        name, value = (c.strip() for c in line.split("="))
         name = name.lower()
 
         if name in ["input"]:

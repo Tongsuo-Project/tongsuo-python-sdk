@@ -14,10 +14,12 @@ from tongsuopy.backends._tongsuo import ffi, lib
 from tongsuopy.backends.tongsuo._conditional import CONDITIONAL_NAMES
 from tongsuopy.crypto.exceptions import InternalError
 
-_OpenSSLErrorWithText = typing.NamedTuple(
-    "_OpenSSLErrorWithText",
-    [("code", int), ("lib", int), ("reason", int), ("reason_text", bytes)],
-)
+
+class _OpenSSLErrorWithText(typing.NamedTuple):
+    code: int
+    lib: int
+    reason: int
+    reason_text: bytes
 
 
 class _OpenSSLError:
@@ -94,9 +96,8 @@ def _openssl_assert(
             "OpenSSL try disabling it before reporting a bug. Otherwise "
             "please file an issue at "
             "https://github.com/Tongsuo-Project/tongsuo-python-sdk/issues "
-            "with information on how to reproduce this. ({0!r})".format(
-                errors_with_text
-            ),
+            "with information on how to reproduce this. "
+            f"({errors_with_text!r})",
             errors_with_text,
         )
 
@@ -222,8 +223,8 @@ def _verify_package_version(version: str) -> None:
             "The version of tongsuopy does not match the loaded shared "
             "object. This can happen if you have multiple copies of tongsuopy "
             "installed in your Python path. Please try creating a new virtual "
-            "environment to resolve this issue. Loaded python version: {}, "
-            "shared object version: {}".format(version, so_package_version)
+            "environment to resolve this issue. Loaded python version: "
+            f"{version}, shared object version: {so_package_version}"
         )
 
 

@@ -41,9 +41,7 @@ class DummySignatureAlgorithm(ec.EllipticCurveSignatureAlgorithm):
 def _skip_curve_unsupported(backend, curve):
     if not backend.elliptic_curve_supported(curve):
         pytest.skip(
-            "Curve {} is not supported by this backend {}".format(
-                curve.name, backend
-            )
+            f"Curve {curve.name} is not supported by this backend {backend}"
         )
 
 
@@ -52,9 +50,8 @@ def _skip_ecdsa_vector(backend, curve_type, hash_type):
         ec.ECDSA(hash_type()), curve_type()
     ):
         pytest.skip(
-            "ECDSA not supported with this hash {} and curve {}.".format(
-                hash_type().name, curve_type().name
-            )
+            f"ECDSA not supported with this hash {hash_type().name} and curve"
+            f" {curve_type().name}."
         )
 
 
@@ -907,7 +904,8 @@ class TestEllipticCurvePEMPublicKeySerialization:
     def test_from_encoded_point_not_a_curve(self):
         with pytest.raises(TypeError):
             ec.EllipticCurvePublicKey.from_encoded_point(
-                "notacurve", b"\x04data"  # type: ignore[arg-type]
+                "notacurve",  # type: ignore[arg-type]
+                b"\x04data",
             )
 
     def test_from_encoded_point_unsupported_encoding(self):

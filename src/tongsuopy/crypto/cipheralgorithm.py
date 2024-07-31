@@ -6,7 +6,6 @@
 import abc
 import typing
 
-
 # This exists to break an import cycle. It is normally accessible from the
 # ciphers module.
 

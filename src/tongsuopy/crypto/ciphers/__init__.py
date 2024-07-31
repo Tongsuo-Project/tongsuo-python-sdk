@@ -15,7 +15,6 @@ from tongsuopy.crypto.ciphers.base import (
     CipherContext,
 )
 
-
 __all__ = [
     "Cipher",
     "CipherAlgorithm",

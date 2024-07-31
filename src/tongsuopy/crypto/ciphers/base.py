@@ -14,7 +14,6 @@ from tongsuopy.crypto.exceptions import (
     NotYetFinalized,
 )
 
-
 if typing.TYPE_CHECKING:
     from tongsuopy.backends.tongsuo.ciphers import (
         _CipherContext as _BackendCipherContext,
@@ -79,6 +78,7 @@ class Cipher(typing.Generic[Mode]):
         self,
         algorithm: CipherAlgorithm,
         mode: Mode,
+        padding: bool = False,
         backend: typing.Any = None,
     ):
         if not isinstance(algorithm, CipherAlgorithm):
@@ -92,18 +92,17 @@ class Cipher(typing.Generic[Mode]):
 
         self.algorithm = algorithm
         self.mode = mode
+        self.padding = padding
 
     @typing.overload
     def encryptor(
         self: "Cipher[modes.ModeWithAuthenticationTag]",
-    ) -> AEADEncryptionContext:
-        ...
+    ) -> AEADEncryptionContext: ...
 
     @typing.overload
     def encryptor(
         self: "_CIPHER_TYPE",
-    ) -> CipherContext:
-        ...
+    ) -> CipherContext: ...
 
     def encryptor(self):
         if isinstance(self.mode, modes.ModeWithAuthenticationTag):
@@ -114,27 +113,25 @@ class Cipher(typing.Generic[Mode]):
         from tongsuopy.backends.tongsuo import backend
 
         ctx = backend.create_symmetric_encryption_ctx(
-            self.algorithm, self.mode
+            self.algorithm, self.mode, self.padding
         )
         return self._wrap_ctx(ctx, encrypt=True)
 
     @typing.overload
     def decryptor(
         self: "Cipher[modes.ModeWithAuthenticationTag]",
-    ) -> AEADDecryptionContext:
-        ...
+    ) -> AEADDecryptionContext: ...
 
     @typing.overload
     def decryptor(
         self: "_CIPHER_TYPE",
-    ) -> CipherContext:
-        ...
+    ) -> CipherContext: ...
 
     def decryptor(self):
         from tongsuopy.backends.tongsuo import backend
 
         ctx = backend.create_symmetric_decryption_ctx(
-            self.algorithm, self.mode
+            self.algorithm, self.mode, self.padding
         )
         return self._wrap_ctx(ctx, encrypt=False)
 
@@ -205,9 +202,8 @@ class _AEADCipherContext(AEADCipherContext):
         self._bytes_processed += data_size
         if self._bytes_processed > self._ctx._mode._MAX_ENCRYPTED_BYTES:
             raise ValueError(
-                "{} has a maximum encrypted byte limit of {}".format(
-                    self._ctx._mode.name, self._ctx._mode._MAX_ENCRYPTED_BYTES
-                )
+                f"{self._ctx._mode.name} has a maximum encrypted byte limit "
+                f"of {self._ctx._mode._MAX_ENCRYPTED_BYTES}"
             )
 
     def update(self, data: bytes) -> bytes:
@@ -239,9 +235,8 @@ class _AEADCipherContext(AEADCipherContext):
         self._aad_bytes_processed += len(data)
         if self._aad_bytes_processed > self._ctx._mode._MAX_AAD_BYTES:
             raise ValueError(
-                "{} has a maximum AAD byte limit of {}".format(
-                    self._ctx._mode.name, self._ctx._mode._MAX_AAD_BYTES
-                )
+                f"{self._ctx._mode.name} has a maximum AAD byte limit of "
+                f"{self._ctx._mode._MAX_AAD_BYTES}"
             )
 
         self._ctx.authenticate_additional_data(data)

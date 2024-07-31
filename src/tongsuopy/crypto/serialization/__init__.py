@@ -19,7 +19,6 @@ from tongsuopy.crypto.serialization.base import (
     load_pem_public_key,
 )
 
-
 __all__ = [
     "load_der_private_key",
     "load_der_public_key",

@@ -1,5 +1,8 @@
 include CHANGES.md
 include LICENSE
+include LICENSE.APACHE
+include LICENSE.BSD
+
 include README.md
 
 include pyproject.toml

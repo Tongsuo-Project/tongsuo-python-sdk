@@ -6,12 +6,11 @@ import typing
 
 from tongsuopy.crypto.exceptions import InvalidTag
 
-
 if typing.TYPE_CHECKING:
     from tongsuopy.backends.tongsuo.backend import Backend
     from tongsuopy.crypto.ciphers.aead import (
-        SM4GCM,
         SM4CCM,
+        SM4GCM,
     )
 
     _AEAD_TYPES = typing.Union[
