@@ -11,4 +11,4 @@ __all__ = [
 __version__ = "1.0.1"
 
 __author__ = "The Tongsuo Project Authors"
-__copyright__ = "Copyright 2023 {}. All Rights Reserved.".format(__author__)
+__copyright__ = f"Copyright 2023-2024 {__author__}. All Rights Reserved."

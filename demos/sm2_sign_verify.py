@@ -5,7 +5,7 @@
 from tongsuopy.crypto import hashes, serialization
 from tongsuopy.crypto.asymciphers import ec
 
-msg = b"hello"
+msg = "hello"
 key = ec.generate_private_key(ec.SM2())
 
 pem = key.public_key().public_bytes(
@@ -14,5 +14,5 @@ pem = key.public_key().public_bytes(
 )
 pubkey = serialization.load_pem_public_key(pem)
 
-signature = key.sign(msg, ec.ECDSA(hashes.SM3()))
-pubkey.verify(signature, msg, ec.ECDSA(hashes.SM3()))
+signature = key.sign(msg.encode(), ec.ECDSA(hashes.SM3()))
+pubkey.verify(signature, msg.encode(), ec.ECDSA(hashes.SM3()))

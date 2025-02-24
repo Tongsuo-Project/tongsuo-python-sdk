@@ -11,11 +11,11 @@ import pytest
 from tongsuopy.crypto.ciphers.aead import SM4CCM, SM4GCM
 from tongsuopy.crypto.exceptions import InvalidTag
 
-from .utils import _load_all_params
 from ..utils import (
     load_nist_ccm_vectors,
     load_nist_vectors,
 )
+from .utils import _load_all_params
 
 
 class FakeData(bytes):

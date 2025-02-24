@@ -5,7 +5,7 @@
 from tongsuopy.crypto import serialization
 from tongsuopy.crypto.asymciphers import ec
 
-msg = b"hello"
+msg = "hello"
 key = ec.generate_private_key(ec.SM2())
 
 pem = key.public_key().public_bytes(
@@ -14,6 +14,6 @@ pem = key.public_key().public_bytes(
 )
 pubkey = serialization.load_pem_public_key(pem)
 
-ciphertext = pubkey.encrypt(msg)
+ciphertext = pubkey.encrypt(msg.encode())
 decrypt_text = key.decrypt(ciphertext)
-assert decrypt_text == msg
+assert decrypt_text == msg.encode()

@@ -27,11 +27,10 @@ from tongsuopy.crypto.ciphers.modes import (
     CTR,
     ECB,
     GCM,
-    Mode,
     OFB,
+    Mode,
 )
 from tongsuopy.crypto.exceptions import UnsupportedAlgorithm, _Reasons
-
 
 _MemoryBIO = collections.namedtuple("_MemoryBIO", ["bio", "char_ptr"])
 
@@ -53,10 +52,8 @@ class Backend:
         self._register_default_ciphers()
 
     def __repr__(self) -> str:
-        return "<TongsuoBackend(version: {}, Legacy: {})>".format(
-            self.openssl_version_text(),
-            self._binding._legacy_provider_loaded,
-        )
+        return f"<TongsuoBackend(version: {self.openssl_version_text()}, "
+        f"Legacy: {self._binding._legacy_provider_loaded})>"
 
     def openssl_assert(
         self,
@@ -80,14 +77,18 @@ class Backend:
         return self._lib.OpenSSL_version_num()
 
     def create_symmetric_encryption_ctx(
-        self, cipher: CipherAlgorithm, mode: Mode
+        self, cipher: CipherAlgorithm, mode: Mode, padding: bool
     ) -> _CipherContext:
-        return _CipherContext(self, cipher, mode, _CipherContext._ENCRYPT)
+        return _CipherContext(
+            self, cipher, mode, padding, _CipherContext._ENCRYPT
+        )
 
     def create_symmetric_decryption_ctx(
-        self, cipher: CipherAlgorithm, mode: Mode
+        self, cipher: CipherAlgorithm, mode: Mode, padding: bool
     ) -> _CipherContext:
-        return _CipherContext(self, cipher, mode, _CipherContext._DECRYPT)
+        return _CipherContext(
+            self, cipher, mode, padding, _CipherContext._DECRYPT
+        )
 
     def cipher_supported(self, cipher: CipherAlgorithm, mode: Mode) -> bool:
         try:
@@ -100,9 +101,7 @@ class Backend:
     def register_cipher_adapter(self, cipher_cls, mode_cls, adapter):
         if (cipher_cls, mode_cls) in self._cipher_registry:
             raise ValueError(
-                "Duplicate registration for: {} {}.".format(
-                    cipher_cls, mode_cls
-                )
+                f"Duplicate registration for: {cipher_cls} {mode_cls}."
             )
         self._cipher_registry[cipher_cls, mode_cls] = adapter
 
@@ -349,8 +348,8 @@ class Backend:
                 else:
                     assert userdata.error == -2
                     raise ValueError(
-                        "Passwords longer than {} bytes are not supported "
-                        "by this backend.".format(userdata.maxsize - 1)
+                        f"Passwords longer than {userdata.maxsize - 1} bytes "
+                        f"are not supported by this backend."
                     )
             else:
                 self._handle_key_loading_error()
@@ -471,7 +470,7 @@ class Backend:
         curve_nid = self._lib.OBJ_sn2nid(curve_name.encode())
         if curve_nid == self._lib.NID_undef:
             raise UnsupportedAlgorithm(
-                "{} is not a supported elliptic curve".format(curve.name),
+                f"{curve.name} is not a supported elliptic curve",
                 _Reasons.UNSUPPORTED_ELLIPTIC_CURVE,
             )
         return curve_nid
@@ -521,7 +520,7 @@ class Backend:
             return _EllipticCurvePrivateKey(self, ec_cdata, evp_pkey)
         else:
             raise UnsupportedAlgorithm(
-                "Backend object does not support {}.".format(curve.name),
+                f"Backend object does not support {curve.name}.",
                 _Reasons.UNSUPPORTED_ELLIPTIC_CURVE,
             )
 

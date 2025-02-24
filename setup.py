@@ -8,7 +8,7 @@ import os
 import sys
 import warnings
 
-from setuptools import setup
+from setuptools import setup  # type: ignore
 
 # distutils emits this warning if you pass `setup()` an unknown option. This
 # is what happens if you somehow run this file without `cffi` installed:

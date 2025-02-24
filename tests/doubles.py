@@ -2,8 +2,7 @@
 # this file except in compliance with the License. See the LICENSE file
 # in the root of this repository for complete details.
 
-from tongsuopy.crypto import hashes
-from tongsuopy.crypto import serialization
+from tongsuopy.crypto import hashes, serialization
 from tongsuopy.crypto.ciphers import (
     CipherAlgorithm,
 )

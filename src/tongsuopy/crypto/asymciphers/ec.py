@@ -263,8 +263,8 @@ class EllipticCurvePublicNumbers:
 
     def __repr__(self) -> str:
         return (
-            "<EllipticCurvePublicNumbers(curve={0.curve.name}, x={0.x}, "
-            "y={0.y}>".format(self)
+            f"<EllipticCurvePublicNumbers(curve={self.curve.name}, "
+            f"x={self.x}, y={self.y}>"
         )
 
 

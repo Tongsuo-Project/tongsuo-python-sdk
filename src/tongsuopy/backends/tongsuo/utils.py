@@ -4,7 +4,6 @@
 
 import typing
 
-
 if typing.TYPE_CHECKING:
     from tongsuopy.backends.tongsuo.backend import Backend
 

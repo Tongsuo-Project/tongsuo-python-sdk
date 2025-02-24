@@ -12,7 +12,6 @@ from tongsuopy.crypto.exceptions import (
     _Reasons,
 )
 
-
 if typing.TYPE_CHECKING:
     from tongsuopy.backends.tongsuo.backend import Backend
 
@@ -23,7 +22,7 @@ class _CipherContext:
     _MAX_CHUNK_SIZE = 2**30 - 1
 
     def __init__(
-        self, backend: "Backend", cipher, mode, operation: int
+        self, backend: "Backend", cipher, mode, padding, operation: int
     ) -> None:
         self._backend = backend
         self._cipher = cipher
@@ -46,22 +45,21 @@ class _CipherContext:
             adapter = registry[type(cipher), type(mode)]
         except KeyError:
             raise UnsupportedAlgorithm(
-                "cipher {} in {} mode is not supported "
-                "by this backends.".format(
-                    cipher.name, mode.name if mode else mode
-                ),
+                f"cipher {cipher.name} in {mode.name if mode else mode} mode "
+                "is not supported by this backends.",
                 _Reasons.UNSUPPORTED_CIPHER,
             )
 
         evp_cipher = adapter(self._backend, cipher, mode)
         if evp_cipher == self._backend._ffi.NULL:
-            msg = "cipher {0.name} ".format(cipher)
+            msg = f"cipher {cipher.name} "
             if mode is not None:
-                msg += "in {0.name} mode ".format(mode)
+                msg += f"in {mode.name} mode "
             msg += (
                 "is not supported by this backends (Your version of OpenSSL "
-                "may be too old. Current version: {}.)"
-            ).format(self._backend.openssl_version_text())
+                "may be too old. Current version: "
+                f"{self._backend.openssl_version_text()}.)"
+            )
             raise UnsupportedAlgorithm(msg, _Reasons.UNSUPPORTED_CIPHER)
 
         if isinstance(mode, modes.ModeWithInitializationVector):
@@ -138,9 +136,11 @@ class _CipherContext:
 
         self._backend.openssl_assert(res != 0, errors=errors)
 
-        # We purposely disable padding here as it's handled higher up in the
-        # API.
-        self._backend._lib.EVP_CIPHER_CTX_set_padding(ctx, 0)
+        if padding:
+            self._backend._lib.EVP_CIPHER_CTX_set_padding(ctx, 1)
+        else:
+            self._backend._lib.EVP_CIPHER_CTX_set_padding(ctx, 0)
+
         self._ctx = ctx
 
     def update(self, data: bytes) -> bytes:
@@ -152,8 +152,10 @@ class _CipherContext:
         total_data_len = len(data)
         if len(buf) < (total_data_len + self._block_size_bytes - 1):
             raise ValueError(
-                "buffer must be at least {} bytes for this "
-                "payload".format(len(data) + self._block_size_bytes - 1)
+                "buffer must be at least "
+                f"{len(data) + self._block_size_bytes - 1} bytes for this "
+                ""
+                "payload"
             )
 
         data_processed = 0
@@ -246,15 +248,13 @@ class _CipherContext:
         tag_len = len(tag)
         if tag_len < self._mode._min_tag_length:
             raise ValueError(
-                "Authentication tag must be {} bytes or longer.".format(
-                    self._mode._min_tag_length
-                )
+                f"Authentication tag must be {self._mode._min_tag_length} "
+                "bytes or longer."
             )
         elif tag_len > self._block_size_bytes:
             raise ValueError(
-                "Authentication tag cannot be more than {} bytes.".format(
-                    self._block_size_bytes
-                )
+                "Authentication tag cannot be more than "
+                f"{self._block_size_bytes} bytes."
             )
         res = self._backend._lib.EVP_CIPHER_CTX_ctrl(
             self._ctx, self._backend._lib.EVP_CTRL_AEAD_SET_TAG, len(tag), tag

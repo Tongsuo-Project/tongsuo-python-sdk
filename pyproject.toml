@@ -1,20 +1,80 @@
 [build-system]
+# These requirements must be kept sync with the requirements in
+# ./github/requirements/build-requirements.{in,txt}
 requires = [
-    # The minimum setuptools version is specific to the PEP 517 backend,
-    # and may be stricter than the version required in `setup.cfg`
-    "setuptools>=40.6.0,!=60.9.0",
-    "wheel",
-    # Must be kept in sync with the `install_requirements` in `setup.cfg`
+    # Must be kept in sync with `project.dependencies`
     "cffi>=1.12; platform_python_implementation != 'PyPy'",
+    # Needed because cffi imports distutils, and in Python 3.12, distutils has
+    # been removed from the stdlib, but installing setuptools puts it back.
+    "setuptools",
 ]
 build-backend = "setuptools.build_meta"
 
-[tool.black]
-line-length = 79
-target-version = ["py36"]
+[project]
+name = "tongsuopy"
+authors = [
+    {name = "Tongsuo Project Authors", email = "tongsuo-dev@tongsuo.net"}
+]
+description = "Tongsuo Python SDK"
+readme = "README.md"
+license = {text = "Apache-2.0 OR BSD-3-Clause"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: BSD License",
+    "Natural Language :: English",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX",
+    "Operating System :: POSIX :: BSD",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Security :: Cryptography",
+]
+requires-python = ">=3.7"
+dependencies = [
+    # Must be kept in sync with `build-system.requires`
+    "cffi>=1.12; platform_python_implementation != 'PyPy'",
+]
+dynamic = ["version"]
+
+[project.urls]
+homepage = "https://github.com/Tongsuo-Project/tongsuo-python-sdk"
+documentation = "https://www.tongsuo.net/docs/"
+source = "https://github.com/Tongsuo-Project/tongsuo-python-sdk"
+issues = "https://github.com/Tongsuo-Project/tongsuo-python-sdk/issues"
+
+[project.optional-dependencies]
+# All the following are used for our own testing.
+nox = ["nox"]
+test = [
+    "pytest >=6.2.0",
+    "pytest-benchmark",
+    "pytest-cov",
+    "pytest-xdist",
+    "pytest-subtests",
+    "pretend",
+    "certifi",
+]
+test-randomorder = ["pytest-randomly"]
+sdist = ["build"]
+# `click` included because its needed to type check `release.py`
+pep8test = ["ruff", "mypy", "check-sdist", "click"]
 
 [tool.pytest.ini_options]
-addopts = "-r s --capture=no --strict-markers"
+addopts = "-r s --capture=no --strict-markers --benchmark-disable"
+console_output_style = "progress-even-when-capture-no"
 markers = [
     "skip_fips: this test is not executed in FIPS mode",
     "supported: parametrized test requiring only_if and skip_message",
@@ -26,6 +86,8 @@ check_untyped_defs = true
 no_implicit_reexport = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+warn_unused_configs = true
+strict_equality = true
 
 [[tool.mypy.overrides]]
 module = [
@@ -44,9 +106,9 @@ source = [
 [tool.coverage.paths]
 source = [
    "src/tongsuopy",
-   "*.tox/*/lib*/python*/site-packages/tongsuopy",
-   "*.tox\\*\\Lib\\site-packages\\tongsuopy",
-   "*.tox/pypy/site-packages/tongsuopy",
+   "*.nox/*/lib*/python*/site-packages/tongsuopy",
+   "*.nox\\*\\Lib\\site-packages\\tongsuopy",
+   "*.nox/pypy/site-packages/tongsuopy",
 ]
 tests =[
    "tests/",
@@ -60,3 +122,24 @@ exclude_lines = [
     "@typing.overload",
     "if typing.TYPE_CHECKING",
 ]
+
+[tool.ruff]
+line-length = 79
+
+lint.ignore = ['N818']
+lint.select = ['E', 'F', 'I', 'N', 'W', 'UP', 'RUF']
+
+[tool.ruff.lint.isort]
+known-first-party = ["tongsuopy", "tests"]
+
+[tool.check-sdist]
+git-only = [
+    "infra/",
+    "ci-constraints-requirements.txt",
+    "release.py",
+    ".gitattributes",
+    ".gitignore",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "tongsuopy.__version__"}
