@@ -8,7 +8,7 @@ __all__ = [
     "__copyright__",
 ]
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 __author__ = "The Tongsuo Project Authors"
-__copyright__ = f"Copyright 2023-2024 {__author__}. All Rights Reserved."
+__copyright__ = f"Copyright 2023-2025 {__author__}. All Rights Reserved."
